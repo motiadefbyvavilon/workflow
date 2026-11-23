@@ -1,8 +1,11 @@
-// GET /api/customers — заказчики (авторы заявок)
-import { customers, latency, maybeFail } from '../utils/db'
+// GET /api/customers — справочник заказчиков. Любой авторизованный (401 анониму).
+import type { ApiCustomer } from '#shared/types'
 
 export default defineEventHandler(async (event) => {
-  if (maybeFail(event) === 'failed') return
-  await latency()
-  return { items: customers }
+  await requireUser(event)
+  const db = await getDb()
+  const { rows } = await db.query<ApiCustomer>(
+    'SELECT id, name, company, email FROM customers ORDER BY id',
+  )
+  return { items: rows }
 })

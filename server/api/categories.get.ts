@@ -1,8 +1,11 @@
-// GET /api/categories — категории заявок (справочник)
-import { categories, latency, maybeFail } from '../utils/db'
+// GET /api/categories — справочник категорий. Любой авторизованный (401 анониму).
+import type { ApiCategory } from '#shared/types'
 
 export default defineEventHandler(async (event) => {
-  if (maybeFail(event) === 'failed') return
-  await latency()
-  return { items: categories }
+  await requireUser(event)
+  const db = await getDb()
+  const { rows } = await db.query<ApiCategory>(
+    'SELECT id, name, slug FROM categories ORDER BY id',
+  )
+  return { items: rows }
 })
