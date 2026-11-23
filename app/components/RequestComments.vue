@@ -1,9 +1,11 @@
 <script setup lang="ts">
-// Список комментариев с формой добавления (локально, уровень 1 — mock)
+// Список комментариев с формой добавления (уровень 3 — через API)
 import type { RequestComment } from '~/types/request'
 import { formatDateTime, initials } from '~/utils/format'
 
-const props = defineProps<{ comments: RequestComment[] }>()
+const props = withDefaults(defineProps<{ comments: RequestComment[]; posting?: boolean }>(), {
+  posting: false,
+})
 
 const emit = defineEmits<{ add: [text: string] }>()
 
@@ -12,7 +14,7 @@ const inputId = useId()
 
 function submit() {
   const text = draft.value.trim()
-  if (!text) return
+  if (!text || props.posting) return
   emit('add', text)
   draft.value = ''
 }
@@ -54,7 +56,9 @@ function onKeydown(e: KeyboardEvent) {
           @keydown="onKeydown"
         ></textarea>
       </div>
-      <button type="submit" class="btn btn-primary" :disabled="!draft.trim()">Отправить</button>
+      <button type="submit" class="btn btn-primary" :disabled="!draft.trim() || posting">
+        {{ posting ? 'Отправка…' : 'Отправить' }}
+      </button>
     </form>
   </section>
 </template>
