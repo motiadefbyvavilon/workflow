@@ -138,7 +138,16 @@ async function logout() {
     title="Нет доступа к заявке"
     description="Эта заявка не входит в ваши доступные, либо сессия истекла. Войдите под подходящей учётной записью."
   >
-    <NuxtLink to="/requests" class="btn btn-primary">К списку заявок</NuxtLink>
+    <div class="denied-actions">
+      <NuxtLink
+        :to="{ path: '/login', query: { redirect: `/requests/${id}` } }"
+        class="btn btn-primary"
+        data-testid="denied-login"
+      >
+        Войти снова
+      </NuxtLink>
+      <NuxtLink to="/requests" class="btn btn-ghost">К списку заявок</NuxtLink>
+    </div>
   </StateBlock>
 
   <!-- Временная ошибка сервера -->
@@ -200,7 +209,7 @@ async function logout() {
       <div v-if="canEditStatus || canEditPriority || canAssign" class="editors" aria-label="Изменение заявки">
         <div v-if="canEditStatus" class="field editor">
           <label for="edit-status">Статус</label>
-          <select id="edit-status" v-model="statusValue" :disabled="mutations.busyField.value !== null">
+          <select id="edit-status" v-model="statusValue" data-testid="status-select" :disabled="mutations.busyField.value !== null">
             <option :value="raw?.status" disabled>{{ STATUS_LABELS[raw?.status ?? 'new'] }} (текущий)</option>
             <option v-for="key in allowedStatuses" :key="key" :value="key">{{ STATUS_LABELS[key] }}</option>
           </select>
@@ -213,7 +222,7 @@ async function logout() {
         </div>
         <div v-if="canAssign" class="field editor">
           <label for="edit-assignee">Исполнитель</label>
-          <select id="edit-assignee" v-model.number="assigneeValue" :disabled="mutations.busyField.value !== null">
+          <select id="edit-assignee" v-model.number="assigneeValue" data-testid="assignee-select" :disabled="mutations.busyField.value !== null">
             <option :value="0">Не назначен</option>
             <option v-for="u in agents" :key="u.id" :value="u.id">{{ u.name }}</option>
           </select>
@@ -263,6 +272,12 @@ async function logout() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.denied-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .skeleton-wrap {

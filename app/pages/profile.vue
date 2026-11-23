@@ -47,7 +47,7 @@ async function logout() {
         <p class="user-role">{{ ROLE_LABELS[auth.me.role] }}</p>
         <p class="user-email mono">{{ auth.me.email }}</p>
       </div>
-      <button type="button" class="btn btn-ghost" @click="logout">Выйти</button>
+      <button type="button" class="btn btn-ghost" data-testid="logout-btn" @click="logout">Выйти</button>
     </section>
 
     <section aria-labelledby="activity-title">
