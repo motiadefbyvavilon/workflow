@@ -1,28 +1,36 @@
-// POST /api/requests/:id/comments — добавление комментария
-// Body: { text: string }. Демо ошибок: ?fail=500.
-import { requests, users, latency, maybeFail } from '../../../utils/db'
+// POST /api/requests/:id/comments — добавление комментария.
+// Любой авторизованный с доступом к заявке. Body: { text } — Zod (400).
+import { z } from 'zod'
+import type { ApiComment } from '#shared/types'
+import { requireRequestAccess } from '../../../utils/access'
+
+const bodySchema = z.object({
+  text: z.string().trim().min(1, 'Пустой комментарий').max(2000, 'Комментарий слишком длинный'),
+})
 
 export default defineEventHandler(async (event) => {
-  if (maybeFail(event) === 'failed') return
-  await latency(400)
-
   const id = String(getRouterParam(event, 'id') ?? '')
-  const request = requests.find((r) => r.id === id)
-  if (!request) {
-    throw createError({ statusCode: 404, statusMessage: 'Заявка не найдена' })
+  const { user } = await requireRequestAccess(event, id)
+
+  const parsed = bodySchema.safeParse(await readBody(event))
+  if (!parsed.success) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Невалидное тело запроса',
+      data: { issues: parsed.error.issues },
+    })
   }
 
-  const body = (await readBody<{ text?: string }>(event)) ?? {}
-  const text = String(body.text ?? '').trim()
-  if (!text) {
-    throw createError({ statusCode: 400, statusMessage: 'Пустой комментарий' })
-  }
+  const db = await getDb()
+  const now = new Date().toISOString()
+  const { rows } = await db.query<ApiComment>(
+    `INSERT INTO comments (request_id, author_id, text, created_at)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, created_at AS at, author_id, text`,
+    [id, user.id, parsed.data.text, now],
+  )
 
-  const actor = users.find((u) => u.role === 'agent') ?? users[0]
-  const comment = { at: new Date().toISOString(), author_id: actor.id, text }
-  if (!request.comments) request.comments = []
-  request.comments.push(comment)
-  request.updated_at = new Date().toISOString()
-
+  const comment: ApiComment = { ...rows[0], author_name: user.name }
+  await db.query('UPDATE requests SET updated_at = $2 WHERE id = $1', [id, now])
   return comment
 })
