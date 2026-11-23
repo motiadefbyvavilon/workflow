@@ -1,33 +1,57 @@
 <script setup lang="ts">
-// Профиль демо-пользователя: данные мок-авторизации + статистика по заявкам
+// Профиль (уровень 2): текущий пользователь — из API /api/users,
+// статистика — по данным /api/requests. Мок-сессия из localStorage.
 definePageMeta({ middleware: 'auth' })
 
 useHead({ title: 'Профиль — WorkFlow' })
 
+import type { ApiUser, RequestListResponse } from '~/types/api'
+import { toRequestCardModel } from '~/utils/mappers'
+
 const router = useRouter()
-const { requests, fetchRequests, countsByStatus } = useRequests()
 
-if (requests.value.length === 0) {
-  await fetchRequests()
+const { data: usersData, status: usersStatus } = await useFetch<{ items: ApiUser[] }>('/api/users', {
+  default: () => ({ items: [] }),
+})
+
+const { data: reqData } = await useFetch<RequestListResponse>('/api/requests', {
+  query: { page: 1, pageSize: 50 },
+  default: () => ({ items: [], total: 0, page: 1, pageSize: 50 }),
+})
+
+const { dicts } = useDictionaries()
+
+const requests = computed(() => (reqData.value?.items ?? []).map((r) => toRequestCardModel(r, dicts.value)))
+
+const counts = computed(() => {
+  const base = { new: 0, in_progress: 0, waiting: 0, done: 0, cancelled: 0 }
+  for (const r of requests.value) base[r.status] += 1
+  return base
+})
+
+const active = computed(() => counts.value.new + counts.value.in_progress + counts.value.waiting)
+
+const ROLE_LABELS: Record<ApiUser['role'], string> = {
+  admin: 'Администратор',
+  agent: 'Сотрудник поддержки',
+  observer: 'Наблюдатель',
 }
 
-interface Session {
-  email: string
-  at: number
-}
-
-const session = ref<Session | null>(null)
+/** Текущий пользователь: из сессии по email, иначе первый админ из API */
+const sessionEmail = ref('')
 
 onMounted(() => {
   try {
-    session.value = JSON.parse(localStorage.getItem('wf-auth') || 'null')
+    sessionEmail.value = JSON.parse(localStorage.getItem('wf-auth') || '{}').email ?? ''
   } catch {
-    session.value = null
+    sessionEmail.value = ''
   }
 })
 
-const counts = computed(() => countsByStatus())
-const active = computed(() => counts.value.new + counts.value.in_progress + counts.value.waiting)
+const me = computed<ApiUser | undefined>(() => {
+  const list = usersData.value?.items ?? []
+  return list.find((u) => u.email === sessionEmail.value) ?? list.find((u) => u.role === 'admin') ?? list[0]
+})
 
 function logout() {
   localStorage.removeItem('wf-auth')
@@ -39,17 +63,18 @@ function logout() {
   <div class="profile">
     <h1>Профиль</h1>
 
-    <section class="card user-card" aria-label="Пользователь">
-      <span class="avatar-big" aria-hidden="true">{{ (session?.email?.[0] || 'U').toUpperCase() }}</span>
+    <div v-if="usersStatus === 'pending'" class="card stat-skel" aria-busy="true">
+      <div class="skeleton" style="width: 40%; height: 20px"></div>
+      <div class="skeleton" style="width: 60%"></div>
+      <div class="skeleton" style="width: 30%"></div>
+    </div>
+
+    <section v-else-if="me" class="card user-card" aria-label="Пользователь">
+      <span class="avatar-big" aria-hidden="true">{{ me.name[0] }}</span>
       <div class="user-info">
-        <h2>Демо-пользователь</h2>
-        <p class="user-email mono">{{ session?.email || '—' }}</p>
-        <p class="user-since">
-          Сессия создана:
-          <time class="mono" :datetime="new Date(session?.at || 0).toISOString()">
-            {{ session?.at ? new Date(session.at).toLocaleString('ru-RU') : '—' }}
-          </time>
-        </p>
+        <h2>{{ me.name }}</h2>
+        <p class="user-role">{{ ROLE_LABELS[me.role] }}</p>
+        <p class="user-email mono">{{ me.email }}</p>
       </div>
       <button type="button" class="btn btn-ghost" @click="logout">Выйти</button>
     </section>
@@ -71,7 +96,7 @@ function logout() {
         </div>
         <div class="stat">
           <dt>Всего</dt>
-          <dd class="mono">{{ requests.length }}</dd>
+          <dd class="mono">{{ reqData?.total ?? 0 }}</dd>
         </div>
       </dl>
     </section>
@@ -88,6 +113,13 @@ function logout() {
 .profile h1 {
   margin: 0;
   font-size: 24px;
+}
+
+.stat-skel {
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .user-card {
@@ -120,16 +152,17 @@ function logout() {
   font-size: 18px;
 }
 
-.user-email {
+.user-role {
   margin: 0;
-  font-size: 14px;
-  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
 }
 
-.user-since {
+.user-email {
   margin: 4px 0 0;
-  font-size: 12.5px;
-  color: var(--text-faint);
+  font-size: 13.5px;
+  color: var(--text-secondary);
 }
 
 .section-title {
@@ -168,8 +201,6 @@ function logout() {
 }
 
 @media (max-width: 640px) {
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .stats { grid-template-columns: repeat(2, 1fr); }
 }
 </style>

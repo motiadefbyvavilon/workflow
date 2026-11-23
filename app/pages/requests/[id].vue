@@ -1,33 +1,51 @@
 <script setup lang="ts">
-// Детальная страница заявки: описание, хронология, комментарии.
-// Обрабатывает неизвестный id — состояние «не найдено».
+// Детальная страница заявки (уровень 2): данные с API, 404-состояние,
+// карточка заказчика из справочника /api/customers, retry при ошибке.
 definePageMeta({ middleware: 'auth' })
 
-import { STATUS_LABELS, type RequestComment } from '~/types/request'
+import type { ApiRequest } from '~/types/api'
+import { STATUS_LABELS } from '~/types/request'
 import { formatDate, timeAgo } from '~/utils/format'
+import { toRequestViewModel } from '~/utils/mappers'
 
 const route = useRoute()
 const router = useRouter()
-const { requests, fetchRequests, byId } = useRequests()
+const id = String(route.params.id)
 
-useHead({ title: `Заявка ${route.params.id} — WorkFlow` })
+useHead({ title: `Заявка ${id} — WorkFlow` })
 
-if (requests.value.length === 0) {
-  await fetchRequests()
-}
+const { dicts } = useDictionaries()
 
-const request = computed(() => byId(String(route.params.id)))
+const {
+  data: raw,
+  status,
+  error,
+  refresh,
+} = await useFetch<ApiRequest>(`/api/requests/${id}`)
 
-const comments = ref<RequestComment[]>(request.value ? [...request.value.comments] : [])
+const notFound = computed(() => (error.value as { statusCode?: number } | null)?.statusCode === 404)
+
+const request = computed(() => (raw.value ? toRequestViewModel(raw.value, dicts.value) : undefined))
+
+const customer = computed(() =>
+  raw.value ? dicts.value.customers.get(raw.value.author_id) : undefined,
+)
+
+const localComments = ref<string[]>([])
 
 function addComment(text: string) {
-  comments.value.push({
-    id: `local-${Date.now()}`,
+  localComments.value.push(text)
+}
+
+const allComments = computed(() => [
+  ...(request.value?.comments ?? []),
+  ...localComments.value.map((text, i) => ({
+    id: `local-${i}`,
     at: new Date().toISOString(),
     author: 'Вы',
     text,
-  })
-}
+  })),
+])
 
 function logout() {
   localStorage.removeItem('wf-auth')
@@ -36,7 +54,40 @@ function logout() {
 </script>
 
 <template>
-  <div v-if="request" class="detail">
+  <!-- Loading -->
+  <div v-if="status === 'pending'" class="detail skeleton-wrap" aria-busy="true" aria-label="Загрузка заявки">
+    <div class="card skeleton-card">
+      <div class="skeleton" style="width: 25%"></div>
+      <div class="skeleton" style="width: 60%; height: 22px"></div>
+      <div class="skeleton" style="width: 90%"></div>
+      <div class="skeleton" style="width: 45%"></div>
+    </div>
+    <div class="card skeleton-card">
+      <div class="skeleton" style="width: 35%"></div>
+      <div class="skeleton" style="width: 80%"></div>
+    </div>
+  </div>
+
+  <!-- Не найдена -->
+  <StateBlock
+    v-else-if="notFound"
+    title="Заявка не найдена"
+    :description="`Заявки с номером ${id} нет в системе. Возможно, она удалена или ссылка устарела.`"
+  >
+    <NuxtLink to="/requests" class="btn btn-primary">К списку заявок</NuxtLink>
+  </StateBlock>
+
+  <!-- Временная ошибка сервера -->
+  <StateBlock
+    v-else-if="error"
+    tone="danger"
+    title="Не удалось загрузить заявку"
+    description="Сервер временно недоступен. Попробуйте повторить запрос."
+  >
+    <button type="button" class="btn btn-primary" @click="refresh()">Повторить запрос</button>
+  </StateBlock>
+
+  <div v-else-if="request" class="detail">
     <nav class="crumbs" aria-label="Хлебные крошки">
       <NuxtLink to="/requests" class="crumb-link">← К списку заявок</NuxtLink>
     </nav>
@@ -46,6 +97,7 @@ function logout() {
         <span class="mono detail-id">{{ request.id }}</span>
         <StatusTag :status="request.status" />
         <PriorityTag :priority="request.priority" />
+        <span class="cat-badge">{{ request.category }}</span>
       </div>
       <h1>{{ request.title }}</h1>
       <p class="detail-desc">{{ request.description }}</p>
@@ -79,26 +131,31 @@ function logout() {
     </header>
 
     <div class="detail-grid">
-      <section class="card panel" aria-labelledby="timeline-title">
-        <h2 id="timeline-title" class="panel-title">Хронология</h2>
-        <RequestTimeline :entries="request.timeline" />
-      </section>
+      <div class="side-col">
+        <section v-if="customer" class="card panel customer" aria-label="Заказчик">
+          <h2 class="panel-title">Заказчик</h2>
+          <p class="cust-name">{{ customer.name }}</p>
+          <p v-if="customer.company" class="cust-line">{{ customer.company }}</p>
+          <p v-if="customer.email" class="cust-line mono">{{ customer.email }}</p>
+          <p v-if="!customer.company && !customer.email" class="cust-line faint">
+            Дополнительных данных нет
+          </p>
+        </section>
+
+        <section class="card panel" aria-labelledby="timeline-title">
+          <h2 id="timeline-title" class="panel-title">Хронология</h2>
+          <RequestTimeline v-if="request.timeline.length" :entries="request.timeline" />
+          <p v-else class="faint">История по этой заявке пока недоступна.</p>
+        </section>
+      </div>
 
       <section class="card panel">
-        <RequestComments :comments="comments" @add="addComment" />
+        <RequestComments :comments="allComments" @add="addComment" />
       </section>
     </div>
 
     <button type="button" class="btn btn-ghost btn-sm logout" @click="logout">Выйти (сброс сессии)</button>
   </div>
-
-  <StateBlock
-    v-else
-    title="Заявка не найдена"
-    :description="`Заявки с номером ${route.params.id} нет в системе. Возможно, она удалена или ссылка устарела.`"
-  >
-    <NuxtLink to="/requests" class="btn btn-primary">К списку заявок</NuxtLink>
-  </StateBlock>
 </template>
 
 <style scoped>
@@ -106,6 +163,17 @@ function logout() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.skeleton-wrap {
+  gap: 16px;
+}
+
+.skeleton-card {
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .crumbs {
@@ -140,6 +208,15 @@ function logout() {
   font-size: 13px;
   color: var(--text-faint);
   font-weight: 600;
+}
+
+.cat-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 3px 8px;
 }
 
 .detail-head h1 {
@@ -204,6 +281,12 @@ function logout() {
   align-items: start;
 }
 
+.side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .panel {
   padding: 20px 22px;
 }
@@ -211,6 +294,23 @@ function logout() {
 .panel-title {
   margin: 0 0 14px;
   font-size: 15.5px;
+}
+
+.cust-name {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+
+.cust-line {
+  margin: 2px 0;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+
+.faint {
+  color: var(--text-faint);
+  font-size: 13.5px;
+  margin: 0;
 }
 
 .logout {

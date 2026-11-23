@@ -1,106 +1,121 @@
 <script setup lang="ts">
-// Список заявок: фильтры по статусу/приоритету, loading / error / empty состояния.
-// Демо-переключатель сценария API позволяет показать все состояния без backend.
+// Список заявок (уровень 2): данные с API через useFetch, поиск с debounce,
+// фильтры/сортировка/страница — в query-параметрах URL (прямая ссылка
+// восстанавливает состояние), skeleton / empty / error состояния, повтор запроса.
 definePageMeta({ middleware: 'auth' })
-
-import type { RequestPriority, RequestStatus } from '~/types/request'
 
 useHead({ title: 'Заявки — WorkFlow' })
 
 const {
-  requests, pending, failed, scenario,
-  fetchRequests,
+  filters, searchInput,
+  requests, total, page, pageCount,
+  isLoading, isEmpty, error, errorMessage,
+  update, setPage, retry,
 } = useRequests()
 
-const status = ref<RequestStatus | ''>('')
-const priority = ref<RequestPriority | ''>('')
+const { categories } = useDictionaries()
 
-const list = computed(() => {
-  return requests.value.filter((r) => {
-    if (status.value && r.status !== status.value) return false
-    if (priority.value && r.priority !== priority.value) return false
-    return true
-  })
+// Переключение фильтров всегда возвращает на первую страницу
+// (источники по одному — иначе массив-геттер триггерится на любое изменение)
+watch(
+  [() => filters.value.status, () => filters.value.priority, () => filters.value.category],
+  () => {
+    if (page.value !== 1) update({ page: 1 })
+  },
+)
+
+const sort = computed({
+  get: () => filters.value.sort,
+  set: (v) => update({ sort: v, page: 1 }),
 })
 
-const isEmpty = computed(() => !pending.value && !failed.value && list.value.length === 0)
-
-const modalOpen = ref(false)
-
-async function applyScenario(next: 'success' | 'error' | 'empty') {
-  scenario.value = next
-  modalOpen.value = false
-  await fetchRequests()
-}
-
-// Первичная загрузка на сервере (SSR): список сразу присутствует в HTML
-await fetchRequests()
+// Фильтры через сеттеры — каждое изменение сразу пишется в URL и сбрасывает страницу
+const statusFilter = computed({
+  get: () => filters.value.status,
+  set: (v) => update({ status: v, page: 1 }),
+})
+const priorityFilter = computed({
+  get: () => filters.value.priority,
+  set: (v) => update({ priority: v, page: 1 }),
+})
+const categoryFilter = computed({
+  get: () => filters.value.category,
+  set: (v) => update({ category: v, page: 1 }),
+})
 </script>
 
 <template>
   <div class="requests-page">
     <header class="page-head">
       <h1>Заявки</h1>
-      <button type="button" class="btn btn-ghost btn-sm" @click="modalOpen = true">
-        Сценарий API: {{ scenario === 'success' ? 'успех' : scenario === 'error' ? 'ошибка' : 'пусто' }}
-      </button>
+      <div class="sort-box">
+        <label for="sort-select" class="sort-label">Сортировка</label>
+        <select id="sort-select" v-model="sort" class="sort-select">
+          <option v-for="(label, key) in SORT_LABELS" :key="key" :value="key">{{ label }}</option>
+        </select>
+      </div>
     </header>
 
-    <RequestFilters v-model:status="status" v-model:priority="priority" />
+    <div class="search-box">
+      <div class="field">
+        <label for="search-input">Поиск</label>
+        <input
+          id="search-input"
+          v-model="searchInput"
+          type="search"
+          placeholder="Номер, название или текст заявки…"
+          autocomplete="off"
+        />
+      </div>
+      <p class="search-hint" aria-live="polite">
+        Запрос отправляется с задержкой 350 мс после окончания ввода (debounce)
+      </p>
+    </div>
 
-    <!-- Загрузка: скелетон-список -->
-    <div v-if="pending" class="req-list" aria-label="Загрузка заявок" aria-busy="true">
-      <div v-for="i in 4" :key="i" class="card skeleton-card">
+    <RequestFilters
+      v-model:status="statusFilter"
+      v-model:priority="priorityFilter"
+      v-model:category-id="categoryFilter"
+      :categories="categories"
+    />
+
+    <!-- Loading: скелетоны списка -->
+    <div v-if="isLoading" class="req-list" aria-label="Загрузка заявок" aria-busy="true">
+      <div v-for="i in 5" :key="i" class="card skeleton-card">
         <div class="skeleton" style="width: 30%"></div>
         <div class="skeleton" style="width: 70%"></div>
         <div class="skeleton" style="width: 45%"></div>
       </div>
     </div>
 
-    <!-- Ошибка загрузки -->
-    <StateBlock
-      v-else-if="failed"
-      tone="danger"
-      title="Не удалось загрузить заявки"
-      description="Проверьте соединение и попробуйте ещё раз. Состояние имитирует ответ API с ошибкой."
-    >
-      <button type="button" class="btn btn-primary" @click="fetchRequests">Повторить</button>
+    <!-- Error: временная ошибка сервера / rate limit, есть повтор -->
+    <StateBlock v-else-if="error" tone="danger" title="Ошибка загрузки" :description="errorMessage">
+      <button type="button" class="btn btn-primary" @click="retry()">Повторить запрос</button>
     </StateBlock>
 
-    <!-- Пустой результат (пустой API-ответ или слишком строгие фильтры) -->
+    <!-- Empty: нет результатов по текущим параметрам -->
     <StateBlock
       v-else-if="isEmpty"
       title="Заявок не найдено"
       :description="
-        requests.length === 0
-          ? 'API вернул пустой список — так выглядит пустое состояние.'
-          : 'По текущим фильтрам ничего нет. Ослабьте условия отбора.'
+        total === 0
+          ? 'По текущим параметрам ничего не найдено. Измените поиск или сбросьте фильтры.'
+          : 'Нет данных.'
       "
     >
-      <button v-if="requests.length > 0" type="button" class="btn btn-ghost" @click="status = ''; priority = ''">
-        Сбросить фильтры
+      <button type="button" class="btn btn-ghost" @click="update({ search: '', status: '', priority: '', category: 0, page: 1 }); searchInput = ''">
+        Сбросить всё
       </button>
     </StateBlock>
 
-    <!-- Успех: список -->
-    <div v-else class="req-list">
-      <p class="count-note" role="status">Найдено: {{ list.length }}</p>
-      <TransitionGroup name="fade" tag="div" class="req-list-inner">
-        <RequestCard v-for="r in list" :key="r.id" :request="r" />
-      </TransitionGroup>
-    </div>
-
-    <AppModal :open="modalOpen" title="Демо-сценарий API" @close="modalOpen = false">
-      <p class="modal-text">
-        Уровень 1 работает на локальных mock-данных. Выберите, что должен вернуть условный API,
-        чтобы проверить все состояния интерфейса:
-      </p>
-      <div class="scenario-btns">
-        <button type="button" class="btn btn-ghost" @click="applyScenario('success')">Успех (14 заявок)</button>
-        <button type="button" class="btn btn-ghost" @click="applyScenario('error')">Ошибка</button>
-        <button type="button" class="btn btn-ghost" @click="applyScenario('empty')">Пустой ответ</button>
+    <!-- Success -->
+    <template v-else>
+      <p class="count-note" role="status">Найдено: {{ total }} · страница {{ page }} из {{ pageCount }}</p>
+      <div class="req-list">
+        <RequestCard v-for="r in requests" :key="r.id" :request="r" />
       </div>
-    </AppModal>
+      <AppPagination :page="page" :page-count="pageCount" :total="total" @change="setPage" />
+    </template>
   </div>
 </template>
 
@@ -113,7 +128,7 @@ await fetchRequests()
 
 .page-head {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
@@ -124,13 +139,47 @@ await fetchRequests()
   font-size: 24px;
 }
 
-.req-list {
+.sort-box {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 5px;
 }
 
-.req-list-inner {
+.sort-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sort-select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  padding: 8px 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sort-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.search-box .field {
+  max-width: 460px;
+}
+
+.search-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.req-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -147,17 +196,5 @@ await fetchRequests()
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.modal-text {
-  margin: 0 0 14px;
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.scenario-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 </style>
