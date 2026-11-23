@@ -17,8 +17,8 @@ const features = [
       <p class="hero-eyebrow">Учебный проект · практика «Октагон»</p>
       <h1 class="hero-title">WorkFlow — простая система учёта заявок команды</h1>
       <p class="hero-sub">
-        Фронтенд-приложение на Nuxt 4: список заявок, детали с хронологией,
-        фильтры, комментарии и продуманные состояния интерфейса.
+        Full-stack приложение на Nuxt 4: PostgreSQL, серверная авторизация
+        и роли, список заявок, детали с хронологией, фильтры и комментарии.
       </p>
       <div class="hero-actions">
         <NuxtLink to="/login" class="btn btn-primary">Войти в демо</NuxtLink>

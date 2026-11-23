@@ -4,12 +4,12 @@ definePageMeta({ middleware: 'auth' })
 
 useHead({ title: 'Дашборд — WorkFlow' })
 
-import type { RequestListResponse } from '~/types/api'
+import type { RequestListResponse } from '~~/shared/types'
 import { toRequestCardModel } from '~/utils/mappers'
 
 const { dicts } = useDictionaries()
 
-// Все заявки (их 16 < pageSize 50) — для статистики и блока «Последние обновления"
+// Все заявки (их 16 < pageSize 50) — для статистики и блока «Последние обновления»
 const { data, status, error, refresh } = await useFetch<RequestListResponse>('/api/requests', {
   query: { page: 1, pageSize: 50, sort: 'updated_desc' },
   default: () => ({ items: [], total: 0, page: 1, pageSize: 50 }),

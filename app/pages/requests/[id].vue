@@ -1,11 +1,12 @@
 <script setup lang="ts">
-// Детальная страница заявки (уровень 3): редактирование статуса, приоритета
-// и исполнителя с optimistic update, rollback при 409/500, Undo последнего
-// изменения, комментарии через POST. UI-настройки и undo-стек — в Pinia.
+// Детальная страница заявки (уровни 3–4): optimistic update, rollback при
+// 409/500, Undo, комментарии. Уровень 4 добавил серверные права и роли:
+// редакторы показываются по правилам роли (фронт — только UX, сервер решает).
 definePageMeta({ middleware: 'auth' })
 
-import type { ApiRequest, ApiUser } from '~/types/api'
-import { PRIORITY_LABELS, STATUS_LABELS, type RequestPriority } from '~/types/request'
+import type { ApiRequest, ApiUser, RequestPriority, RequestStatus, Role } from '~~/shared/types'
+import { PRIORITY_LABELS } from '~~/shared/types'
+import { canRoleTransition, STATUS_LABELS, STATUS_TRANSITIONS } from '~~/shared/utils/status'
 import { formatDate, timeAgo } from '~/utils/format'
 import { toRequestViewModel } from '~/utils/mappers'
 import { useRequestUiStore } from '~/stores/requestUi'
@@ -18,6 +19,7 @@ useHead({ title: `Заявка ${id} — WorkFlow` })
 
 const { dicts } = useDictionaries()
 const ui = useRequestUiStore()
+const auth = useAuthStore()
 
 const {
   data: raw,
@@ -26,19 +28,58 @@ const {
   refresh,
 } = await useFetch<ApiRequest>(`/api/requests/${id}`)
 
-// Список сотрудников для выбора исполнителя
-const { data: usersData } = await useFetch<{ items: ApiUser[] }>('/api/users', {
-  default: () => ({ items: [] }),
+// Список сотрудников для назначения — только Operator/Admin могут назначать;
+// для остальных ролей /api/users вернул бы 403, поэтому не запрашиваем вовсе.
+const agents = ref<ApiUser[]>([])
+onMounted(async () => {
+  const role = auth.me?.role
+  if (role !== 'operator' && role !== 'admin') return
+  try {
+    const res = await $fetch<{ items: ApiUser[] }>('/api/users')
+    agents.value = (res.items ?? []).filter((u) => u.active && u.role !== 'client')
+  } catch {
+    agents.value = []
+  }
 })
-const agents = computed(() => usersData.value?.items ?? [])
 
-const notFound = computed(() => (error.value as { statusCode?: number } | null)?.statusCode === 404)
+const errorCode = computed(() => (error.value as { statusCode?: number } | null)?.statusCode ?? 0)
+const notFound = computed(() => errorCode.value === 404)
+const accessDenied = computed(() => errorCode.value === 401 || errorCode.value === 403)
 
 const request = computed(() => (raw.value ? toRequestViewModel(raw.value, dicts.value) : undefined))
 
 const customer = computed(() =>
-  raw.value ? dicts.value.customers.get(raw.value.author_id) : undefined,
+  raw.value ? dicts.value.customers.get(raw.value.customer_id ?? raw.value.author_id) : undefined,
 )
+
+// ─── Права текущей роли (UX; сервер проверяет всё сам при PATCH) ───────────
+const role = computed(() => auth.me?.role ?? null)
+
+const isStaff = computed(() => role.value === 'operator' || role.value === 'admin')
+const isAssignedAgent = computed(
+  () => role.value === 'agent' && raw.value?.assignee_id === auth.me?.id,
+)
+const isAuthorWhileNew = computed(
+  () => !!raw.value && raw.value.author_id === auth.me?.id && raw.value.status === 'new',
+)
+
+/** Редактировать статус может staff, назначенный агент или автор новой заявки */
+const canEditStatus = computed(
+  () => isStaff.value || isAssignedAgent.value || isAuthorWhileNew.value,
+)
+/** Приоритет — staff и назначенный агент */
+const canEditPriority = computed(() => isStaff.value || isAssignedAgent.value)
+/** Назначение исполнителя — только staff */
+const canAssign = computed(() => isStaff.value)
+
+/** Доступные цели для смены статуса: общая карта переходов + роль */
+const allowedStatuses = computed<RequestStatus[]>(() => {
+  const current = raw.value?.status
+  if (!current || !role.value || !canEditStatus.value) return []
+  const authorCancelOnly = isAuthorWhileNew.value && !isStaff.value && !isAssignedAgent.value
+  if (authorCancelOnly) return ['cancelled']
+  return STATUS_TRANSITIONS[current].filter((to) => canRoleTransition(current, to, role.value as Role))
+})
 
 const mutations = useRequestMutations(raw as Ref<ApiRequest | null>, refresh)
 
@@ -61,8 +102,8 @@ const canUndo = computed(() => ui.lastChange?.requestId === id)
 
 const allComments = computed(() => request.value?.comments ?? [])
 
-function logout() {
-  localStorage.removeItem('wf-auth')
+async function logout() {
+  await auth.logout()
   router.push('/login')
 }
 </script>
@@ -87,6 +128,15 @@ function logout() {
     v-else-if="notFound"
     title="Заявка не найдена"
     :description="`Заявки с номером ${id} нет в системе. Возможно, она удалена или ссылка устарела.`"
+  >
+    <NuxtLink to="/requests" class="btn btn-primary">К списку заявок</NuxtLink>
+  </StateBlock>
+
+  <!-- Нет доступа / сессия истекла -->
+  <StateBlock
+    v-else-if="accessDenied"
+    title="Нет доступа к заявке"
+    description="Эта заявка не входит в ваши доступные, либо сессия истекла. Войдите под подходящей учётной записью."
   >
     <NuxtLink to="/requests" class="btn btn-primary">К списку заявок</NuxtLink>
   </StateBlock>
@@ -145,25 +195,23 @@ function logout() {
         </div>
       </dl>
 
-      <ul v-if="request.tags.length" class="tags" aria-label="Теги">
-        <li v-for="tag in request.tags" :key="tag" class="tag-mini mono">{{ tag }}</li>
-      </ul>
-
-      <!-- Редакторы: optimistic update, откат при ошибке API, Undo -->
-      <div class="editors" aria-label="Изменение заявки">
-        <div class="field editor">
+      <!-- Редакторы: optimistic update, откат при ошибке API, Undo.
+           Видимость — по роли (сервер всё равно проверяет каждый PATCH) -->
+      <div v-if="canEditStatus || canEditPriority || canAssign" class="editors" aria-label="Изменение заявки">
+        <div v-if="canEditStatus" class="field editor">
           <label for="edit-status">Статус</label>
           <select id="edit-status" v-model="statusValue" :disabled="mutations.busyField.value !== null">
-            <option v-for="(label, key) in STATUS_LABELS" :key="key" :value="key">{{ label }}</option>
+            <option :value="raw?.status" disabled>{{ STATUS_LABELS[raw?.status ?? 'new'] }} (текущий)</option>
+            <option v-for="key in allowedStatuses" :key="key" :value="key">{{ STATUS_LABELS[key] }}</option>
           </select>
         </div>
-        <div class="field editor">
+        <div v-if="canEditPriority" class="field editor">
           <label for="edit-priority">Приоритет</label>
           <select id="edit-priority" v-model="priorityValue" :disabled="mutations.busyField.value !== null">
             <option v-for="(label, key) in PRIORITY_LABELS" :key="key" :value="key">{{ label }}</option>
           </select>
         </div>
-        <div class="field editor">
+        <div v-if="canAssign" class="field editor">
           <label for="edit-assignee">Исполнитель</label>
           <select id="edit-assignee" v-model.number="assigneeValue" :disabled="mutations.busyField.value !== null">
             <option :value="0">Не назначен</option>
@@ -206,7 +254,7 @@ function logout() {
       </section>
     </div>
 
-    <button type="button" class="btn btn-ghost btn-sm logout" @click="logout">Выйти (сброс сессии)</button>
+    <button type="button" class="btn btn-ghost btn-sm logout" @click="logout">Выйти</button>
   </div>
 </template>
 
@@ -309,62 +357,6 @@ function logout() {
   font-weight: 600;
 }
 
-.tags {
-  list-style: none;
-  margin: 4px 0 0;
-  padding: 0;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.tag-mini {
-  background: var(--surface-2);
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-size: 11.5px;
-  color: var(--text-secondary);
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr;
-  gap: 16px;
-  align-items: start;
-}
-
-.side-col {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.panel {
-  padding: 20px 22px;
-}
-
-.panel-title {
-  margin: 0 0 14px;
-  font-size: 15.5px;
-}
-
-.cust-name {
-  margin: 0 0 4px;
-  font-weight: 700;
-}
-
-.cust-line {
-  margin: 2px 0;
-  font-size: 13.5px;
-  color: var(--text-secondary);
-}
-
-.faint {
-  color: var(--text-faint);
-  font-size: 13.5px;
-  margin: 0;
-}
-
 /* Уведомления об успехе / rollback */
 .notice {
   display: flex;
@@ -435,6 +427,45 @@ function logout() {
 
 .logout {
   align-self: flex-start;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel {
+  padding: 20px 22px;
+}
+
+.panel-title {
+  margin: 0 0 14px;
+  font-size: 15.5px;
+}
+
+.cust-name {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+
+.cust-line {
+  margin: 2px 0;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+
+.faint {
+  color: var(--text-faint);
+  font-size: 13.5px;
+  margin: 0;
 }
 
 @media (max-width: 860px) {

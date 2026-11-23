@@ -1,39 +1,61 @@
 <script setup lang="ts">
-// Мок-авторизация (уровень 1): любые непустые логин/пароль,
-// флаг сохраняется в localStorage. Данные формы валидируются локально.
+// Реальный вход (уровень 4): POST /api/auth/login, httpOnly-cookie сессия,
+// ошибка 401 показывается под формой. Демо-аккаунты — в подсказке ниже.
 definePageMeta({ layout: 'public' })
 
 useHead({ title: 'Вход — WorkFlow' })
 
 const router = useRouter()
+const auth = useAuthStore()
 
 const email = ref('')
 const password = ref('')
 const errors = ref<{ email?: string; password?: string }>({})
+const serverError = ref('')
 const busy = ref(false)
+
+/** Демо-аккаунты seed-данных (пароли совпадают с server/utils/db.ts) */
+const DEMO_ACCOUNTS = [
+  { label: 'Админ', email: 'admin@octagon.local', password: 'admin123' },
+  { label: 'Оператор', email: 't.aliev@octagon.local', password: 'operator123' },
+  { label: 'Сотрудник', email: 'i.lebedev@octagon.local', password: 'agent123' },
+  { label: 'Клиент', email: 'a.smirnova@vostok.ru', password: 'client123' },
+]
+
+function fill(account: (typeof DEMO_ACCOUNTS)[number]) {
+  email.value = account.email
+  password.value = account.password
+  serverError.value = ''
+}
 
 function validate(): boolean {
   const next: { email?: string; password?: string } = {}
   if (!email.value.trim()) next.email = 'Укажите email'
   else if (!/^\S+@\S+\.\S+$/.test(email.value.trim())) next.email = 'Некорректный email'
   if (!password.value) next.password = 'Введите пароль'
-  else if (password.value.length < 4) next.password = 'Минимум 4 символа'
   errors.value = next
   return Object.keys(next).length === 0
 }
 
 async function submit() {
+  serverError.value = ''
   if (!validate()) return
   busy.value = true
-  // Имитация запроса
-  await new Promise((r) => setTimeout(r, 400))
-  localStorage.setItem('wf-auth', JSON.stringify({ email: email.value.trim(), at: Date.now() }))
-  busy.value = false
-  router.push('/dashboard')
+  try {
+    await auth.login(email.value.trim(), password.value)
+    router.push('/dashboard')
+  } catch (err) {
+    const statusCode = (err as { statusCode?: number })?.statusCode
+    serverError.value = statusCode === 401
+      ? 'Неверный email или пароль'
+      : 'Не удалось войти. Попробуйте ещё раз.'
+  } finally {
+    busy.value = false
+  }
 }
 
 onMounted(() => {
-  if (localStorage.getItem('wf-auth')) router.push('/dashboard')
+  if (auth.me) router.push('/dashboard')
 })
 </script>
 
@@ -41,7 +63,6 @@ onMounted(() => {
   <div class="login-wrap">
     <form class="login card" novalidate @submit.prevent="submit">
       <h1>Вход в WorkFlow</h1>
-      <p class="hint">Демо-режим: подойдут любые email и пароль (от 4 символов).</p>
 
       <div class="field">
         <label for="login-email">Email</label>
@@ -71,9 +92,23 @@ onMounted(() => {
         <span v-if="errors.password" id="login-password-err" class="field-error">{{ errors.password }}</span>
       </div>
 
+      <p v-if="serverError" class="server-error" role="alert">{{ serverError }}</p>
+
       <button class="btn btn-primary login-btn" type="submit" :disabled="busy">
         {{ busy ? 'Входим…' : 'Войти' }}
       </button>
+
+      <div class="demo" aria-label="Демо-аккаунты">
+        <p class="demo-title">Демо-аккаунты (нажмите, чтобы подставить):</p>
+        <ul class="demo-list">
+          <li v-for="a in DEMO_ACCOUNTS" :key="a.email">
+            <button type="button" class="demo-btn" @click="fill(a)">
+              <strong>{{ a.label }}</strong>
+              <span class="mono">{{ a.email }}</span>
+            </button>
+          </li>
+        </ul>
+      </div>
 
       <NuxtLink class="back" to="/">← На главную</NuxtLink>
     </form>
@@ -89,7 +124,7 @@ onMounted(() => {
 }
 
 .login {
-  width: min(400px, 100%);
+  width: min(420px, 100%);
   padding: 28px;
   display: flex;
   flex-direction: column;
@@ -101,14 +136,63 @@ onMounted(() => {
   font-size: 22px;
 }
 
-.hint {
+.server-error {
   margin: 0;
-  font-size: 13px;
-  color: var(--text-faint);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius-s);
+  padding: 8px 12px;
 }
 
 .login-btn {
   width: 100%;
+}
+
+.demo {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.demo-title {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.demo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.demo-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius-s);
+  padding: 7px 12px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.demo-btn:hover {
+  border-color: var(--accent);
+}
+
+.demo-btn .mono {
+  color: var(--text-faint);
+  font-size: 12px;
 }
 
 .back {

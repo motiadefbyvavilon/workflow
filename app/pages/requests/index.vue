@@ -59,6 +59,7 @@ const categoryFilter = computed({
     <header class="page-head">
       <h1>Заявки</h1>
       <div class="head-controls">
+        <NuxtLink to="/requests/new" class="btn btn-primary btn-sm">+ Новая заявка</NuxtLink>
         <div class="sort-box">
           <label for="page-size" class="sort-label">На странице</label>
           <select id="page-size" v-model.number="pageSize" class="sort-select">
