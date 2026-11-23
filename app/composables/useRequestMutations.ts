@@ -11,12 +11,20 @@ import { useRequestUiStore, type UndoableField } from '~/stores/requestUi'
 function errorText(err: unknown): string {
   const statusCode = (err as { statusCode?: number })?.statusCode
   const statusMessage = (err as { statusMessage?: string })?.statusMessage
+  if (statusCode === 401) return 'Сессия истекла (401). Выполните вход заново — изменение отменено.'
   if (statusCode === 409) return `Конфликт данных (409): ${statusMessage ?? 'изменение отклонено сервером'}`
   if (statusCode === 500) return 'Сервер временно недоступен (500). Изменение отменено.'
   return 'Не удалось сохранить изменение. Значение возвращено назад.'
 }
 
-export function useRequestMutations(raw: Ref<ApiRequest | null>, refresh: () => Promise<void>) {
+/** Функция запроса — для тестов можно подставить мок (уровень 5) */
+type Fetcher = <T>(url: string, options?: { method?: string; body?: unknown }) => Promise<T>
+
+export function useRequestMutations(
+  raw: Ref<ApiRequest | null>,
+  refresh: () => Promise<void>,
+  fetcher: Fetcher = $fetch as unknown as Fetcher,
+) {
   const ui = useRequestUiStore()
   const busyField = ref<UndoableField | 'assignee' | 'comment' | null>(null)
 
@@ -39,7 +47,7 @@ export function useRequestMutations(raw: Ref<ApiRequest | null>, refresh: () => 
     busyField.value = field
 
     try {
-      const updated = await $fetch<ApiRequest>(`/api/requests/${current.id}`, { method: 'PATCH', body: patch })
+      const updated = await fetcher<ApiRequest>(`/api/requests/${current.id}`, { method: 'PATCH', body: patch })
       // сервер — источник истины: применяем его ответ
       raw.value = updated
       // 2. Успех — регистрируем изменение для Undo
@@ -86,7 +94,7 @@ export function useRequestMutations(raw: Ref<ApiRequest | null>, refresh: () => 
     const rolledBack: ApiRequest = { ...current, status: change.from.status, priority: change.from.priority }
     raw.value = rolledBack
     try {
-      await $fetch<ApiRequest>(`/api/requests/${current.id}`, {
+      await fetcher(`/api/requests/${current.id}`, {
         method: 'PATCH',
         body: { status: change.from.status, priority: change.from.priority },
       })
@@ -105,7 +113,7 @@ export function useRequestMutations(raw: Ref<ApiRequest | null>, refresh: () => 
     if (!current || postingComment.value || !text.trim()) return
     postingComment.value = true
     try {
-      const created = await $fetch<ApiComment>(`/api/requests/${current.id}/comments`, {
+      const created = await fetcher<ApiComment>(`/api/requests/${current.id}/comments`, {
         method: 'POST',
         body: { text: text.trim() },
       })
