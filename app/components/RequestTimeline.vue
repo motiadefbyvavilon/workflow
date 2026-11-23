@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Вертикальная лента событий заявки — семантический список для скринридеров
-import type { TimelineEntry } from '~/types/request'
+import type { TimelineEntry } from '~~/shared/types'
 import { formatDateTime, initials } from '~/utils/format'
 
 defineProps<{ entries: TimelineEntry[] }>()

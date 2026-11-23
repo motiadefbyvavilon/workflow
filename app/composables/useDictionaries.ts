@@ -1,7 +1,7 @@
 // Справочники API (пользователи, заказчики, категории).
 // useAsyncData с ключом — данные кешируются между страницами,
 // повторных запросов при переходах по SPA не происходит.
-import type { ApiCategory, ApiCustomer, ApiUser, ListResponse } from '~/types/api'
+import type { ApiCategory, ApiCustomer, ApiUser, ListResponse } from '~~/shared/types'
 import { buildDictionaries, type Dictionaries } from '~/utils/mappers'
 
 export function useDictionaries() {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Карточка заявки в списке — семантическая ссылка, доступная с клавиатуры
-import type { WorkflowRequest } from '~/types/request'
+import type { WorkflowRequest } from '~~/shared/types'
 import { timeAgo } from '~/utils/format'
 
 defineProps<{ request: WorkflowRequest }>()

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { STATUS_LABELS, type RequestStatus } from '~/types/request'
+import type { RequestStatus } from '~~/shared/types'
+import { STATUS_LABELS } from '~~/shared/utils/status'
 
 const props = defineProps<{ status: RequestStatus }>()
 

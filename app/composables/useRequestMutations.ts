@@ -4,16 +4,9 @@
 // сообщением, изменение попадает в Undo-стек (stores/requestUi.ts).
 // Компоненты-потребители работают только с этим composable — детали
 // хранения и отката им не важны.
-import type { ApiComment, ApiPriority, ApiRequest, ApiRequestStatus } from '~/types/api'
+import type { ApiComment, ApiPriority, ApiRequest, RequestPriority, RequestStatus } from '~~/shared/types'
+import { PRIORITY_TO_API } from '~~/shared/types'
 import { useRequestUiStore, type UndoableField } from '~/stores/requestUi'
-import type { RequestPriority } from '~/types/request'
-
-const PRIORITY_TO_API: Record<RequestPriority, ApiPriority> = {
-  low: 1,
-  medium: 2,
-  high: 3,
-  critical: 4,
-}
 
 function errorText(err: unknown): string {
   const statusCode = (err as { statusCode?: number })?.statusCode
@@ -28,7 +21,7 @@ export function useRequestMutations(raw: Ref<ApiRequest | null>, refresh: () => 
   const busyField = ref<UndoableField | 'assignee' | 'comment' | null>(null)
 
   interface Patch {
-    status?: ApiRequestStatus
+    status?: RequestStatus
     priority?: ApiPriority
     assignee_id?: number
   }
@@ -71,7 +64,7 @@ export function useRequestMutations(raw: Ref<ApiRequest | null>, refresh: () => 
     }
   }
 
-  function setStatus(status: ApiRequestStatus) {
+  function setStatus(status: RequestStatus) {
     return patchField('status', { status })
   }
 

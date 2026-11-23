@@ -1,8 +1,13 @@
 <script setup lang="ts">
 // Фильтры списка заявок (уровень 2): статус и приоритет — radiogroup с
 // клавиатурной навигацией стрелками (WAI-ARIA), категория — select из справочника API.
-import { PRIORITY_LABELS, STATUS_LABELS, type RequestPriority, type RequestStatus } from '~/types/request'
-import type { ApiCategory } from '~/types/api'
+import {
+  PRIORITY_LABELS,
+  type ApiCategory,
+  type RequestPriority,
+  type RequestStatus,
+} from '~~/shared/types'
+import { STATUS_LABELS } from '~~/shared/utils/status'
 
 const status = defineModel<RequestStatus | ''>('status', { required: true })
 const priority = defineModel<RequestPriority | ''>('priority', { required: true })

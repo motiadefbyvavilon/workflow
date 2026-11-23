@@ -2,8 +2,7 @@
 // сортировкой и пагинацией. Состояние параметров живёт в URL (query),
 // поэтому прямая ссылка полностью восстанавливает страницу.
 // Поиск debounce-ится — запрос уходит не чаще, чем раз в DEBOUNCE_MS.
-import type { RequestListResponse } from '~/types/api'
-import type { RequestPriority, RequestStatus, WorkflowRequest } from '~/types/request'
+import type { RequestListResponse, RequestPriority, RequestStatus, WorkflowRequest } from '~~/shared/types'
 import { toRequestCardModel } from '~/utils/mappers'
 
 const DEBOUNCE_MS = 350

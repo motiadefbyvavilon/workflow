@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Список комментариев с формой добавления (уровень 3 — через API)
-import type { RequestComment } from '~/types/request'
+import type { RequestComment } from '~~/shared/types'
 import { formatDateTime, initials } from '~/utils/format'
 
 const props = withDefaults(defineProps<{ comments: RequestComment[]; posting?: boolean }>(), {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PRIORITY_LABELS, type RequestPriority } from '~/types/request'
+import { PRIORITY_LABELS, type RequestPriority } from '~~/shared/types'
 
 const props = defineProps<{ priority: RequestPriority }>()
 
