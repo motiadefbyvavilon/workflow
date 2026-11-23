@@ -19,7 +19,7 @@ const requests = computed(() => (data.value?.items ?? []).map((r) => toRequestCa
 
 const counts = computed(() => {
   const base: Record<string, number> = { new: 0, in_progress: 0, waiting: 0, done: 0, cancelled: 0 }
-  for (const r of requests.value) base[r.status] += 1
+  for (const r of requests.value) base[r.status] = (base[r.status] ?? 0) + 1
   return base
 })
 

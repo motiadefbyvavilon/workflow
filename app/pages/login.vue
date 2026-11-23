@@ -6,7 +6,16 @@ definePageMeta({ layout: 'public' })
 useHead({ title: 'Вход — WorkFlow' })
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
+
+/** Куда возвращать после входа: если guard перенаправил с приватной страницы —
+ *  обратно туда (query redirect), иначе на дашборд */
+const redirectTarget = computed(() =>
+  typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
+    ? route.query.redirect
+    : '/dashboard',
+)
 
 const email = ref('')
 const password = ref('')
@@ -43,7 +52,7 @@ async function submit() {
   busy.value = true
   try {
     await auth.login(email.value.trim(), password.value)
-    router.push('/dashboard')
+    router.push(redirectTarget.value)
   } catch (err) {
     const statusCode = (err as { statusCode?: number })?.statusCode
     serverError.value = statusCode === 401
@@ -55,7 +64,7 @@ async function submit() {
 }
 
 onMounted(() => {
-  if (auth.me) router.push('/dashboard')
+  if (auth.me) router.push(redirectTarget.value)
 })
 </script>
 
@@ -68,6 +77,7 @@ onMounted(() => {
         <label for="login-email">Email</label>
         <input
           id="login-email"
+          data-testid="login-email"
           v-model="email"
           type="email"
           autocomplete="username"
@@ -82,6 +92,7 @@ onMounted(() => {
         <label for="login-password">Пароль</label>
         <input
           id="login-password"
+          data-testid="login-password"
           v-model="password"
           type="password"
           autocomplete="current-password"
@@ -94,7 +105,7 @@ onMounted(() => {
 
       <p v-if="serverError" class="server-error" role="alert">{{ serverError }}</p>
 
-      <button class="btn btn-primary login-btn" type="submit" :disabled="busy">
+      <button class="btn btn-primary login-btn" type="submit" data-testid="login-submit" :disabled="busy">
         {{ busy ? 'Входим…' : 'Войти' }}
       </button>
 
