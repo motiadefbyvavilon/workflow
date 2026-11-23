@@ -3,15 +3,15 @@
 // UndoableChange — последнее изменение (для Undo), notice — транзакционное
 // уведомление (rollback/успех). Сами данные заявок здесь НЕ хранятся —
 // это server state и остаётся в useFetch/кэше Nuxt.
-import type { RequestPriority, RequestStatus } from '~~/shared/types'
+import type { ApiPriority, RequestStatus } from '~~/shared/types'
 
 export type UndoableField = 'status' | 'priority'
 
 export interface UndoableChange {
   requestId: string
   field: UndoableField
-  from: { status: RequestStatus; priority: RequestPriority }
-  to: { status: RequestStatus; priority: RequestPriority }
+  from: { status: RequestStatus; priority: ApiPriority }
+  to: { status: RequestStatus; priority: ApiPriority }
   at: number
 }
 

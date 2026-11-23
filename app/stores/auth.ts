@@ -34,5 +34,10 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { me, ready, init, login, logout }
+  /** Сессия протухла на сервере (HTTP 401 в любом запросе) — сброс без редиректа */
+  function expireSession() {
+    me.value = null
+  }
+
+  return { me, ready, init, login, logout, expireSession }
 })
