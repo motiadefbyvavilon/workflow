@@ -9,6 +9,8 @@ import { toRequestCardModel } from '~/utils/mappers'
 const DEBOUNCE_MS = 350
 export const PAGE_SIZE = 5
 
+export const PAGE_SIZE_OPTIONS = [5, 10, 20] as const
+
 export type SortKey = 'updated_desc' | 'created_desc' | 'priority' | 'title'
 
 export interface RequestsQuery {
@@ -31,6 +33,7 @@ export function useRequests() {
   const route = useRoute()
   const router = useRouter()
   const { dicts } = useDictionaries()
+  const prefs = usePreferencesStore()
 
   /** Чтение состояния фильтров из URL — восстановление по прямой ссылке */
   function fromQuery(): RequestsQuery {
@@ -91,7 +94,7 @@ export function useRequests() {
     category: filters.value.category || undefined,
     sort: filters.value.sort,
     page: filters.value.page,
-    pageSize: PAGE_SIZE,
+    pageSize: prefs.pageSize,
   }))
 
   const {
@@ -101,7 +104,7 @@ export function useRequests() {
     refresh,
   } = useFetch<RequestListResponse>('/api/requests', {
     query: apiQuery,
-    default: () => ({ items: [], total: 0, page: 1, pageSize: PAGE_SIZE }),
+    default: () => ({ items: [], total: 0, page: 1, pageSize: prefs.pageSize }),
   })
 
   /** Модели представления — маппинг только здесь и в mappers.ts */
@@ -111,7 +114,7 @@ export function useRequests() {
 
   const total = computed(() => data.value?.total ?? 0)
   const page = computed(() => filters.value.page)
-  const pageCount = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
+  const pageCount = computed(() => Math.max(1, Math.ceil(total.value / prefs.pageSize)))
   const isLoading = computed(() => status.value === 'pending')
   const isEmpty = computed(() => status.value === 'success' && requests.value.length === 0)
 
