@@ -25,7 +25,9 @@ export interface WorkflowRequest {
   status: RequestStatus
   priority: RequestPriority
   author: string
+  authorCompany?: string
   assignee: string
+  category: string
   createdAt: string
   updatedAt: string
   tags: string[]
