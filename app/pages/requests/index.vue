@@ -29,6 +29,16 @@ const sort = computed({
   set: (v) => update({ sort: v, page: 1 }),
 })
 
+// Пользовательские настройки UI — app state, персистентен (Pinia + localStorage)
+const prefs = usePreferencesStore()
+const pageSize = computed({
+  get: () => prefs.pageSize,
+  set: (v: number) => {
+    prefs.setPageSize(v)
+    if (page.value !== 1) update({ page: 1 })
+  },
+})
+
 // Фильтры через сеттеры — каждое изменение сразу пишется в URL и сбрасывает страницу
 const statusFilter = computed({
   get: () => filters.value.status,
@@ -48,11 +58,19 @@ const categoryFilter = computed({
   <div class="requests-page">
     <header class="page-head">
       <h1>Заявки</h1>
-      <div class="sort-box">
-        <label for="sort-select" class="sort-label">Сортировка</label>
-        <select id="sort-select" v-model="sort" class="sort-select">
-          <option v-for="(label, key) in SORT_LABELS" :key="key" :value="key">{{ label }}</option>
-        </select>
+      <div class="head-controls">
+        <div class="sort-box">
+          <label for="page-size" class="sort-label">На странице</label>
+          <select id="page-size" v-model.number="pageSize" class="sort-select">
+            <option v-for="n in PAGE_SIZE_OPTIONS" :key="n" :value="n">{{ n }}</option>
+          </select>
+        </div>
+        <div class="sort-box">
+          <label for="sort-select" class="sort-label">Сортировка</label>
+          <select id="sort-select" v-model="sort" class="sort-select">
+            <option v-for="(label, key) in SORT_LABELS" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </div>
       </div>
     </header>
 
@@ -137,6 +155,13 @@ const categoryFilter = computed({
 .page-head h1 {
   margin: 0;
   font-size: 24px;
+}
+
+.head-controls {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  flex-wrap: wrap;
 }
 
 .sort-box {

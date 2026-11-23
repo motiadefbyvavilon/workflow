@@ -1,12 +1,14 @@
 <script setup lang="ts">
-// Детальная страница заявки (уровень 2): данные с API, 404-состояние,
-// карточка заказчика из справочника /api/customers, retry при ошибке.
+// Детальная страница заявки (уровень 3): редактирование статуса, приоритета
+// и исполнителя с optimistic update, rollback при 409/500, Undo последнего
+// изменения, комментарии через POST. UI-настройки и undo-стек — в Pinia.
 definePageMeta({ middleware: 'auth' })
 
-import type { ApiRequest } from '~/types/api'
-import { STATUS_LABELS } from '~/types/request'
+import type { ApiRequest, ApiUser } from '~/types/api'
+import { PRIORITY_LABELS, STATUS_LABELS, type RequestPriority } from '~/types/request'
 import { formatDate, timeAgo } from '~/utils/format'
 import { toRequestViewModel } from '~/utils/mappers'
+import { useRequestUiStore } from '~/stores/requestUi'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,6 +17,7 @@ const id = String(route.params.id)
 useHead({ title: `Заявка ${id} — WorkFlow` })
 
 const { dicts } = useDictionaries()
+const ui = useRequestUiStore()
 
 const {
   data: raw,
@@ -22,6 +25,12 @@ const {
   error,
   refresh,
 } = await useFetch<ApiRequest>(`/api/requests/${id}`)
+
+// Список сотрудников для выбора исполнителя
+const { data: usersData } = await useFetch<{ items: ApiUser[] }>('/api/users', {
+  default: () => ({ items: [] }),
+})
+const agents = computed(() => usersData.value?.items ?? [])
 
 const notFound = computed(() => (error.value as { statusCode?: number } | null)?.statusCode === 404)
 
@@ -31,21 +40,26 @@ const customer = computed(() =>
   raw.value ? dicts.value.customers.get(raw.value.author_id) : undefined,
 )
 
-const localComments = ref<string[]>([])
+const mutations = useRequestMutations(raw as Ref<ApiRequest | null>, refresh)
 
-function addComment(text: string) {
-  localComments.value.push(text)
-}
+// Значения селектов связаны с raw напрямую — optimistic update виден мгновенно
+const statusValue = computed({
+  get: () => raw.value?.status ?? 'new',
+  set: (v) => mutations.setStatus(v),
+})
+const priorityValue = computed({
+  get: () => request.value?.priority ?? 'medium',
+  set: (v: RequestPriority) => mutations.setPriority(v),
+})
+const assigneeValue = computed({
+  get: () => raw.value?.assignee_id ?? 0,
+  set: (v: number) => mutations.setAssignee(v || null),
+})
 
-const allComments = computed(() => [
-  ...(request.value?.comments ?? []),
-  ...localComments.value.map((text, i) => ({
-    id: `local-${i}`,
-    at: new Date().toISOString(),
-    author: 'Вы',
-    text,
-  })),
-])
+/** Undo доступно, если последнее изменение относится к этой заявке */
+const canUndo = computed(() => ui.lastChange?.requestId === id)
+
+const allComments = computed(() => request.value?.comments ?? [])
 
 function logout() {
   localStorage.removeItem('wf-auth')
@@ -92,6 +106,12 @@ function logout() {
       <NuxtLink to="/requests" class="crumb-link">← К списку заявок</NuxtLink>
     </nav>
 
+    <!-- Транзакционные уведомления: успех / причина rollback -->
+    <p v-if="ui.notice" class="notice" :class="`notice-${ui.notice.kind}`" role="status">
+      {{ ui.notice.text }}
+      <button type="button" class="notice-close" aria-label="Закрыть уведомление" @click="ui.clearNotice()">✕</button>
+    </p>
+
     <header class="detail-head card">
       <div class="detail-top">
         <span class="mono detail-id">{{ request.id }}</span>
@@ -128,6 +148,38 @@ function logout() {
       <ul v-if="request.tags.length" class="tags" aria-label="Теги">
         <li v-for="tag in request.tags" :key="tag" class="tag-mini mono">{{ tag }}</li>
       </ul>
+
+      <!-- Редакторы: optimistic update, откат при ошибке API, Undo -->
+      <div class="editors" aria-label="Изменение заявки">
+        <div class="field editor">
+          <label for="edit-status">Статус</label>
+          <select id="edit-status" v-model="statusValue" :disabled="mutations.busyField.value !== null">
+            <option v-for="(label, key) in STATUS_LABELS" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </div>
+        <div class="field editor">
+          <label for="edit-priority">Приоритет</label>
+          <select id="edit-priority" v-model="priorityValue" :disabled="mutations.busyField.value !== null">
+            <option v-for="(label, key) in PRIORITY_LABELS" :key="key" :value="key">{{ label }}</option>
+          </select>
+        </div>
+        <div class="field editor">
+          <label for="edit-assignee">Исполнитель</label>
+          <select id="edit-assignee" v-model.number="assigneeValue" :disabled="mutations.busyField.value !== null">
+            <option :value="0">Не назначен</option>
+            <option v-for="u in agents" :key="u.id" :value="u.id">{{ u.name }}</option>
+          </select>
+        </div>
+        <button
+          v-if="canUndo"
+          type="button"
+          class="btn btn-ghost undo"
+          :disabled="mutations.busyField.value !== null"
+          @click="mutations.undo()"
+        >
+          ↩︎ Отменить последнее изменение
+        </button>
+      </div>
     </header>
 
     <div class="detail-grid">
@@ -150,7 +202,7 @@ function logout() {
       </div>
 
       <section class="card panel">
-        <RequestComments :comments="allComments" @add="addComment" />
+        <RequestComments :comments="allComments" :posting="mutations.postingComment.value" @add="mutations.addComment" />
       </section>
     </div>
 
@@ -311,6 +363,74 @@ function logout() {
   color: var(--text-faint);
   font-size: 13.5px;
   margin: 0;
+}
+
+/* Уведомления об успехе / rollback */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-m);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.notice-success {
+  background: var(--p-green-100);
+  color: var(--p-green-600);
+}
+
+.notice-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.notice-close {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Редакторы полей */
+.editors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.editor select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  padding: 8px 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 160px;
+}
+
+.editor select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.editor select:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.undo {
+  margin-left: auto;
 }
 
 .logout {
