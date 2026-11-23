@@ -1,21 +1,20 @@
 <script setup lang="ts">
-// Фильтры списка заявок — переключатели-радио с полной клавиатурной навигацией
-// (стрелки внутри группы, Tab между группами) по паттерну WAI-ARIA Radio Group.
+// Фильтры списка заявок (уровень 2): статус и приоритет — radiogroup с
+// клавиатурной навигацией стрелками (WAI-ARIA), категория — select из справочника API.
 import { PRIORITY_LABELS, STATUS_LABELS, type RequestPriority, type RequestStatus } from '~/types/request'
+import type { ApiCategory } from '~/types/api'
 
 const status = defineModel<RequestStatus | ''>('status', { required: true })
 const priority = defineModel<RequestPriority | ''>('priority', { required: true })
+const categoryId = defineModel<number>('categoryId', { required: true })
+
+defineProps<{ categories: ApiCategory[] }>()
 
 const STATUS_KEYS = Object.keys(STATUS_LABELS) as RequestStatus[]
 const PRIORITY_KEYS = Object.keys(PRIORITY_LABELS) as RequestPriority[]
 
 const statusRefs = ref<HTMLButtonElement[]>([])
 const priorityRefs = ref<HTMLButtonElement[]>([])
-
-function move(refs: HTMLButtonElement[], from: number, delta: number) {
-  const next = (from + delta + refs.length) % refs.length
-  refs[next]?.focus()
-}
 
 function onStatusKey(e: KeyboardEvent, index: number) {
   if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
@@ -48,20 +47,17 @@ function onPriorityKey(e: KeyboardEvent, index: number) {
 function reset() {
   status.value = ''
   priority.value = ''
+  categoryId.value = 0
 }
 
-const hasActive = computed(() => status.value !== '' || priority.value !== '')
+const hasActive = computed(() => status.value !== '' || priority.value !== '' || categoryId.value !== 0)
 </script>
 
 <template>
   <div class="filters card">
     <div class="filter-group">
       <span id="filter-status-label" class="filter-label">Статус</span>
-      <div
-        class="chips"
-        role="radiogroup"
-        aria-labelledby="filter-status-label"
-      >
+      <div class="chips" role="radiogroup" aria-labelledby="filter-status-label">
         <button
           ref="statusRefs"
           v-for="(key, i) in ['' as const, ...STATUS_KEYS]"
@@ -82,11 +78,7 @@ const hasActive = computed(() => status.value !== '' || priority.value !== '')
 
     <div class="filter-group">
       <span id="filter-priority-label" class="filter-label">Приоритет</span>
-      <div
-        class="chips"
-        role="radiogroup"
-        aria-labelledby="filter-priority-label"
-      >
+      <div class="chips" role="radiogroup" aria-labelledby="filter-priority-label">
         <button
           ref="priorityRefs"
           v-for="(key, i) in ['' as const, ...PRIORITY_KEYS]"
@@ -103,6 +95,14 @@ const hasActive = computed(() => status.value !== '' || priority.value !== '')
           {{ key === '' ? 'Все' : PRIORITY_LABELS[key] }}
         </button>
       </div>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label" for="filter-category">Категория</label>
+      <select id="filter-category" v-model.number="categoryId" class="cat-select">
+        <option :value="0">Все категории</option>
+        <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </select>
     </div>
 
     <button v-if="hasActive" type="button" class="btn btn-ghost btn-sm reset" @click="reset">
@@ -159,6 +159,23 @@ const hasActive = computed(() => status.value !== '' || priority.value !== '')
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+
+.cat-select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  padding: 7px 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 170px;
+}
+
+.cat-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .reset {
