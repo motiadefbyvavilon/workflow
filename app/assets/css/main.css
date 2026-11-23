@@ -1,0 +1,236 @@
+/* ── Design tokens ─────────────────────────────────────────── */
+:root {
+  --p-gray-50: oklch(97.8% 0.004 250);
+  --p-gray-100: oklch(94.5% 0.007 250);
+  --p-gray-200: oklch(89.5% 0.01 250);
+  --p-ink-900: oklch(25% 0.03 265);
+  --p-ink-500: oklch(50% 0.025 265);
+  --p-ink-400: oklch(61% 0.02 265);
+  --p-indigo-600: oklch(48% 0.19 278);
+  --p-indigo-700: oklch(42% 0.17 278);
+  --p-indigo-100: oklch(93% 0.035 285);
+  --p-blue-100: oklch(92.5% 0.04 240);
+  --p-blue-600: oklch(50% 0.15 250);
+  --p-green-100: oklch(93% 0.05 155);
+  --p-green-600: oklch(50% 0.12 155);
+  --p-amber-100: oklch(93.5% 0.06 85);
+  --p-amber-700: oklch(50% 0.11 80);
+  --p-red-100: oklch(93% 0.05 25);
+  --p-red-600: oklch(54% 0.19 25);
+
+  --bg: var(--p-gray-50);
+  --surface: oklch(99.2% 0.002 250);
+  --surface-2: var(--p-gray-100);
+  --border: var(--p-gray-200);
+  --text: var(--p-ink-900);
+  --text-secondary: var(--p-ink-500);
+  --text-faint: var(--p-ink-400);
+  --accent: var(--p-indigo-600);
+  --accent-strong: var(--p-indigo-700);
+  --accent-soft: var(--p-indigo-100);
+  --danger: var(--p-red-600);
+  --danger-soft: var(--p-red-100);
+
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+  --shadow-card: 0 1px 2px oklch(25% 0.03 265 / 0.05), 0 4px 16px oklch(25% 0.03 265 / 0.06);
+  --shadow-pop: 0 8px 32px oklch(25% 0.03 265 / 0.16);
+
+  --font: 'Golos Text', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'Consolas', monospace;
+
+  --z-modal: 40;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Skip-link для клавиатурной навигации */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 16px;
+  z-index: 100;
+  border-radius: 0 0 var(--radius-s) 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+/* ── Buttons ───────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-m);
+  padding: 9px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: transform 0.15s ease-out, background-color 0.15s ease-out, border-color 0.15s ease-out;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--text-faint);
+}
+
+.btn-ghost:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ── Cards / fields / badges ───────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-card);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.field input,
+.field select,
+.field textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  padding: 9px 11px;
+  font-size: 14.5px;
+  width: 100%;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.field .field-error {
+  font-size: 12.5px;
+  color: var(--danger);
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+/* ── Skeleton ──────────────────────────────────────────────── */
+.skeleton {
+  height: 14px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  animation: wf-pulse 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes wf-pulse {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+
+/* ── Motion ────────────────────────────────────────────────── */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
