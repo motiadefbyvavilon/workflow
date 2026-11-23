@@ -10,10 +10,12 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.17",
     "@pinia/nuxt": "^1.0.3",
     "nuxt": "^4.6.4",
     "pinia": "^4.1.0",
     "vue": "^3.5.45",
-    "vue-router": "^5.4.0"
+    "vue-router": "^5.4.0",
+    "zod": "^4.6.7"
   }
 }
