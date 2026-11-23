@@ -1,123 +1,152 @@
-// Composable с локальными mock-данными заявок.
-// Имитирует асинхронный API: задержка, состояния loading / error / success / empty.
-// На уровне 2 этот слой заменяется реальным fetch без изменения страниц.
+// Слой данных уровня 2: список заявок с API с поиском, фильтрами,
+// сортировкой и пагинацией. Состояние параметров живёт в URL (query),
+// поэтому прямая ссылка полностью восстанавливает страницу.
+// Поиск debounce-ится — запрос уходит не чаще, чем раз в DEBOUNCE_MS.
+import type { RequestListResponse } from '~/types/api'
+import type { RequestPriority, RequestStatus, WorkflowRequest } from '~/types/request'
+import { toRequestCardModel } from '~/utils/mappers'
 
-import type { WorkflowRequest, RequestStatus, RequestPriority } from '~/types/request'
+const DEBOUNCE_MS = 350
+export const PAGE_SIZE = 5
 
-const LATENCY = 450
+export type SortKey = 'updated_desc' | 'created_desc' | 'priority' | 'title'
 
-function daysAgo(n: number, hours = 10): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  d.setHours(hours, 15, 0, 0)
-  return d.toISOString()
+export interface RequestsQuery {
+  search: string
+  status: '' | RequestStatus
+  priority: '' | RequestPriority
+  category: number
+  sort: SortKey
+  page: number
 }
 
-function seedRequests(): WorkflowRequest[] {
-  const mk = (
-    id: string,
-    title: string,
-    status: RequestStatus,
-    priority: RequestPriority,
-    author: string,
-    assignee: string,
-    createdDaysAgo: number,
-    tags: string[],
-    description: string,
-  ): WorkflowRequest => ({
-    id,
-    title,
-    description,
-    status,
-    priority,
-    author,
-    assignee,
-    createdAt: daysAgo(createdDaysAgo),
-    updatedAt: daysAgo(Math.max(0, createdDaysAgo - 1), 16),
-    tags,
-    timeline: [
-      { id: `${id}-t1`, at: daysAgo(createdDaysAgo), actor: author, action: 'Создана заявка' },
-      {
-        id: `${id}-t2`,
-        at: daysAgo(Math.max(0, createdDaysAgo - 1), 12),
-        actor: assignee,
-        action: 'Назначен исполнитель',
-      },
-    ],
-    comments: [
-      {
-        id: `${id}-c1`,
-        at: daysAgo(Math.max(0, createdDaysAgo - 1), 14),
-        author: assignee,
-        text: 'Взял в работу, уточню детали у автора.',
-      },
-    ],
-  })
-
-  return [
-    mk('WF-101', 'Не открывается раздел отчётов', 'in_progress', 'critical', 'Анна Смирнова', 'Игорь Лебедев', 1, ['баг', 'отчёты'], 'При переходе в «Отчёты» бесконечный спиннер, в консоли ошибка 500.'),
-    mk('WF-102', 'Добавить выгрузку заявок в CSV', 'new', 'medium', 'Пётр Волков', '—', 0, ['фича', 'экспорт'], 'Нужна кнопка «Скачать CSV» в списке заявок с учётом текущих фильтров.'),
-    mk('WF-103', 'Исправить верстку карточки на 360px', 'waiting', 'high', 'Мария Ким', 'Ольга Соколова', 2, ['вёрстка', 'мобайл'], 'Карточка заявки обрезает кнопки на узких экранах.'),
-    mk('WF-104', 'Уведомления о новых комментариях', 'new', 'low', 'Дмитрий Орлов', '—', 3, ['фича', 'уведомления'], 'Приходить письмо автору заявки о новом комментарии.'),
-    mk('WF-105', 'Падение при пустом теге', 'done', 'high', 'Анна Смирнова', 'Игорь Лебедев', 5, ['баг'], 'Сохранение заявки без тегов приводит к 400. Исправлено валидацией.'),
-    mk('WF-106', 'Тёмная тема', 'cancelled', 'low', 'Сергей Антонов', '—', 8, ['ux'], 'Отложено: вернёмся после редизайна токенов.'),
-    mk('WF-107', 'Оптимизация загрузки списка', 'in_progress', 'medium', 'Мария Ким', 'Ольга Соколова', 4, ['производительность'], 'Список из 500 заявок рендерится 2.5 c — нужна виртуализация.'),
-    mk('WF-108', 'Права доступа: роль наблюдателя', 'new', 'medium', 'Пётр Волков', '—', 2, ['доступ'], 'Роль с правом чтения без комментариев.'),
-    mk('WF-109', 'Поиск по номеру заявки', 'done', 'low', 'Дмитрий Орлов', 'Игорь Лебедев', 6, ['поиск'], 'Поиск по WF-### из шапки.'),
-    mk('WF-110', 'Ошибка часового пояса в timeline', 'waiting', 'critical', 'Анна Смирнова', 'Ольга Соколова', 1, ['баг', 'даты'], 'События отображаются со смещением −7 часов для пользователей из Владивостока.'),
-    mk('WF-111', 'Импорт заявок из Jira', 'new', 'high', 'Сергей Антонов', '—', 3, ['интеграция', 'импорт'], 'Миграция 1200 заявок из старого трекера с сохранением истории.'),
-    mk('WF-112', 'Улучшить пустые состояния', 'in_progress', 'low', 'Мария Ким', 'Игорь Лебедев', 7, ['ux', 'копирайтинг'], 'Добавить иллюстрации и подсказки в пустые списки.'),
-    mk('WF-113', 'Двухфакторная авторизация', 'done', 'critical', 'Пётр Волков', 'Ольга Соколова', 10, ['безопасность'], 'TOTP для всех администраторов. Протестировано на 20 пользователях.'),
-    mk('WF-114', 'Автозакрытие устаревших заявок', 'new', 'medium', 'Дмитрий Орлов', '—', 1, ['автоматизация'], 'Заявки без активности 90 дней переводить в «Отменена» с уведомлением.'),
-  ]
+export const SORT_LABELS: Record<SortKey, string> = {
+  updated_desc: 'Сначала обновлённые',
+  created_desc: 'Сначала новые',
+  priority: 'По приоритету',
+  title: 'По названию А–Я',
 }
-
-export type Scenario = 'success' | 'error' | 'empty'
 
 export function useRequests() {
-  const requests = useState<WorkflowRequest[]>('requests', () => [])
-  const pending = useState<boolean>('requests-pending', () => false)
-  const failed = useState<boolean>('requests-failed', () => false)
+  const route = useRoute()
+  const router = useRouter()
+  const { dicts } = useDictionaries()
 
-  /** Демо-сценарий API: позволяет показать error и empty состояния без реального backend */
-  const scenario = useState<Scenario>('requests-scenario', () => 'success')
-
-  async function fetchRequests(): Promise<void> {
-    pending.value = true
-    failed.value = false
-    await new Promise((resolve) => setTimeout(resolve, LATENCY))
-    if (scenario.value === 'error') {
-      pending.value = false
-      failed.value = true
-      return
+  /** Чтение состояния фильтров из URL — восстановление по прямой ссылке */
+  function fromQuery(): RequestsQuery {
+    const q = route.query
+    const sort = String(q.sort ?? '') as SortKey
+    return {
+      search: String(q.search ?? ''),
+      status: (String(q.status ?? '') || '') as RequestsQuery['status'],
+      priority: (String(q.priority ?? '') || '') as RequestsQuery['priority'],
+      category: Number(q.category ?? 0) || 0,
+      sort: sort in SORT_LABELS ? sort : 'updated_desc',
+      page: Math.max(1, Number(q.page ?? 1) || 1),
     }
-    requests.value = scenario.value === 'empty' ? [] : seedRequests()
-    pending.value = false
   }
 
-  function byId(id: string): WorkflowRequest | undefined {
-    return requests.value.find((r) => r.id === id)
-  }
+  const filters = ref<RequestsQuery>(fromQuery())
 
-  function filtered(status: RequestStatus | '', priority: RequestPriority | ''): WorkflowRequest[] {
-    return requests.value.filter((r) => {
-      if (status && r.status !== status) return false
-      if (priority && r.priority !== priority) return false
-      return true
+  /** Локальное поле поиска — в URL уходит только debounce-версия */
+  const searchInput = ref(filters.value.search)
+  const debouncedSearch = useDebouncedRef(searchInput, DEBOUNCE_MS)
+
+  watch(debouncedSearch, (value) => {
+    if (value !== filters.value.search) {
+      update({ search: value, page: 1 })
+    }
+  })
+
+  // Синхронизация с браузерной навигацией (назад/вперёд)
+  watch(
+    () => route.query,
+    () => {
+      const next = fromQuery()
+      filters.value = next
+      if (next.search !== searchInput.value) searchInput.value = next.search
+    },
+  )
+
+  /** Запись состояния в URL (replace — без мусора в истории) */
+  function update(patch: Partial<RequestsQuery>) {
+    filters.value = { ...filters.value, ...patch }
+    const f = filters.value
+    router.replace({
+      query: {
+        ...(f.search ? { search: f.search } : {}),
+        ...(f.status ? { status: f.status } : {}),
+        ...(f.priority ? { priority: f.priority } : {}),
+        ...(f.category ? { category: String(f.category) } : {}),
+        ...(f.sort !== 'updated_desc' ? { sort: f.sort } : {}),
+        ...(f.page > 1 ? { page: String(f.page) } : {}),
+      },
     })
   }
 
-  function countsByStatus(): Record<RequestStatus, number> {
-    const base: Record<RequestStatus, number> = {
-      new: 0,
-      in_progress: 0,
-      waiting: 0,
-      done: 0,
-      cancelled: 0,
-    }
-    for (const r of requests.value) base[r.status] += 1
-    return base
+  const apiQuery = computed(() => ({
+    search: filters.value.search || undefined,
+    status: filters.value.status || undefined,
+    priority: filters.value.priority || undefined,
+    category: filters.value.category || undefined,
+    sort: filters.value.sort,
+    page: filters.value.page,
+    pageSize: PAGE_SIZE,
+  }))
+
+  const {
+    data,
+    status,
+    error,
+    refresh,
+  } = useFetch<RequestListResponse>('/api/requests', {
+    query: apiQuery,
+    default: () => ({ items: [], total: 0, page: 1, pageSize: PAGE_SIZE }),
+  })
+
+  /** Модели представления — маппинг только здесь и в mappers.ts */
+  const requests = computed<WorkflowRequest[]>(() =>
+    (data.value?.items ?? []).map((raw) => toRequestCardModel(raw, dicts.value)),
+  )
+
+  const total = computed(() => data.value?.total ?? 0)
+  const page = computed(() => filters.value.page)
+  const pageCount = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
+  const isLoading = computed(() => status.value === 'pending')
+  const isEmpty = computed(() => status.value === 'success' && requests.value.length === 0)
+
+  /** Человекочитаемое сообщение об ошибке, включая HTTP 429 и 500 */
+  const errorMessage = computed(() => {
+    if (!error.value) return ''
+    const statusCode = (error.value as { statusCode?: number }).statusCode
+    if (statusCode === 429) return 'Слишком много запросов (429). Подождите немного и повторите.'
+    if (statusCode === 500) return 'Сервер временно недоступен (500). Попробуйте ещё раз.'
+    return 'Не удалось загрузить заявки. Проверьте соединение и повторите.'
+  })
+
+  function retry() {
+    return refresh()
   }
 
-  return { requests, pending, failed, scenario, fetchRequests, byId, filtered, countsByStatus }
+  function setPage(p: number) {
+    const next = Math.min(Math.max(1, p), pageCount.value)
+    if (next !== page.value) update({ page: next })
+  }
+
+  return {
+    filters,
+    searchInput,
+    requests,
+    total,
+    page,
+    pageCount,
+    isLoading,
+    isEmpty,
+    error,
+    errorMessage,
+    status,
+    update,
+    setPage,
+    retry,
+  }
 }
