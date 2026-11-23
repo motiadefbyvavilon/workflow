@@ -59,7 +59,7 @@ const categoryFilter = computed({
     <header class="page-head">
       <h1>Заявки</h1>
       <div class="head-controls">
-        <NuxtLink to="/requests/new" class="btn btn-primary btn-sm">+ Новая заявка</NuxtLink>
+        <NuxtLink to="/requests/new" class="btn btn-primary btn-sm" data-testid="new-request-btn">+ Новая заявка</NuxtLink>
         <div class="sort-box">
           <label for="page-size" class="sort-label">На странице</label>
           <select id="page-size" v-model.number="pageSize" class="sort-select">
@@ -130,7 +130,7 @@ const categoryFilter = computed({
     <!-- Success -->
     <template v-else>
       <p class="count-note" role="status">Найдено: {{ total }} · страница {{ page }} из {{ pageCount }}</p>
-      <div class="req-list">
+      <div class="req-list" data-testid="request-list">
         <RequestCard v-for="r in requests" :key="r.id" :request="r" />
       </div>
       <AppPagination :page="page" :page-count="pageCount" :total="total" @change="setPage" />

@@ -48,8 +48,9 @@ async function submit() {
     router.push(`/requests/${created.id}`)
   } catch (err) {
     const e = err as { statusCode?: number; statusMessage?: string; data?: { issues?: { message: string }[] } }
-    if (e.statusCode === 400 && e.data?.issues?.length) {
-      serverError.value = e.data.issues[0].message
+    const firstIssue = e.data?.issues?.[0]
+    if (e.statusCode === 400 && firstIssue) {
+      serverError.value = firstIssue.message
     } else {
       serverError.value = e.statusMessage ?? 'Не удалось создать заявку. Попробуйте ещё раз.'
     }
@@ -72,6 +73,7 @@ async function submit() {
         <label for="nr-subject">Тема</label>
         <input
           id="nr-subject"
+          data-testid="nr-subject"
           v-model="subject"
           type="text"
           maxlength="200"
@@ -85,6 +87,7 @@ async function submit() {
         <label for="nr-body">Описание</label>
         <textarea
           id="nr-body"
+          data-testid="nr-body"
           v-model="body"
           rows="5"
           maxlength="5000"
@@ -97,7 +100,7 @@ async function submit() {
       <div class="form-row">
         <div class="field">
           <label for="nr-category">Категория</label>
-          <select id="nr-category" v-model.number="categoryId" :aria-invalid="!!errors.category">
+          <select id="nr-category" data-testid="nr-category" v-model.number="categoryId" :aria-invalid="!!errors.category">
             <option :value="0">Выберите категорию…</option>
             <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
@@ -115,7 +118,7 @@ async function submit() {
       <p v-if="serverError" class="server-error" role="alert">{{ serverError }}</p>
 
       <div class="actions">
-        <button type="submit" class="btn btn-primary" :disabled="busy">
+        <button type="submit" class="btn btn-primary" data-testid="nr-submit" :disabled="busy">
           {{ busy ? 'Создаём…' : 'Создать заявку' }}
         </button>
         <NuxtLink to="/requests" class="btn btn-ghost">Отмена</NuxtLink>
