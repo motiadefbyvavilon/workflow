@@ -25,12 +25,12 @@ function onStatusKey(e: KeyboardEvent, index: number) {
   if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
     e.preventDefault()
     const next = (index + 1) % STATUS_KEYS.length
-    status.value = STATUS_KEYS[next]
+    status.value = STATUS_KEYS[next] as RequestStatus
     nextTick(() => statusRefs.value[next]?.focus())
   } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
     e.preventDefault()
     const prev = (index - 1 + STATUS_KEYS.length) % STATUS_KEYS.length
-    status.value = STATUS_KEYS[prev]
+    status.value = STATUS_KEYS[prev] as RequestStatus
     nextTick(() => statusRefs.value[prev]?.focus())
   }
 }
@@ -39,12 +39,12 @@ function onPriorityKey(e: KeyboardEvent, index: number) {
   if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
     e.preventDefault()
     const next = (index + 1) % PRIORITY_KEYS.length
-    priority.value = PRIORITY_KEYS[next]
+    priority.value = PRIORITY_KEYS[next] as RequestPriority
     nextTick(() => priorityRefs.value[next]?.focus())
   } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
     e.preventDefault()
     const prev = (index - 1 + PRIORITY_KEYS.length) % PRIORITY_KEYS.length
-    priority.value = PRIORITY_KEYS[prev]
+    priority.value = PRIORITY_KEYS[prev] as RequestPriority
     nextTick(() => priorityRefs.value[prev]?.focus())
   }
 }

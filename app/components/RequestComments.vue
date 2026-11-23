@@ -12,11 +12,29 @@ const emit = defineEmits<{ add: [text: string] }>()
 const draft = ref('')
 const inputId = useId()
 
-function submit() {
+// Регрессия (уровень 5, двойной комментарий): локальный флаг ставится
+// СИНХРОННО в том же тике, что и emit. Раньше проверялся только props.posting,
+// который обновляется после перерендера — двойной клик/Ctrl+Enter+клик в
+// пределах одного тика проскакивал guard и отправлял два одинаковых запроса.
+const sending = ref(false)
+
+watch(
+  () => props.posting,
+  (posting) => {
+    if (!posting) sending.value = false
+  },
+)
+
+async function submit() {
   const text = draft.value.trim()
-  if (!text || props.posting) return
+  if (!text || props.posting || sending.value) return
+  sending.value = true
   emit('add', text)
   draft.value = ''
+  await nextTick()
+  // Если родитель не начал отправку (early return в addComment) — не блокируем
+  // форму навсегда: снимаем флаг сразу. Иначе сброс — по окончании posting.
+  if (!props.posting) sending.value = false
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -50,14 +68,21 @@ function onKeydown(e: KeyboardEvent) {
         <label :for="inputId">Новый комментарий</label>
         <textarea
           :id="inputId"
+          data-testid="comment-input"
           v-model="draft"
           rows="3"
           placeholder="Напишите комментарий… (Ctrl+Enter — отправить)"
+          :disabled="posting || sending"
           @keydown="onKeydown"
         ></textarea>
       </div>
-      <button type="submit" class="btn btn-primary" :disabled="!draft.trim() || posting">
-        {{ posting ? 'Отправка…' : 'Отправить' }}
+      <button
+        type="submit"
+        class="btn btn-primary"
+        data-testid="comment-submit"
+        :disabled="!draft.trim() || posting || sending"
+      >
+        {{ posting || sending ? 'Отправка…' : 'Отправить' }}
       </button>
     </form>
   </section>

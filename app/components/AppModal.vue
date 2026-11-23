@@ -31,8 +31,8 @@ function onKeydown(e: KeyboardEvent) {
     e.preventDefault()
     return
   }
-  const first = focusables[0]
-  const last = focusables[focusables.length - 1]
+  const first = focusables[0] as HTMLElement
+  const last = focusables[focusables.length - 1] as HTMLElement
   const active = document.activeElement as HTMLElement | null
   if (e.shiftKey && (active === first || !panelEl.value?.contains(active))) {
     e.preventDefault()
