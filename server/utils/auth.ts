@@ -1,31 +1,14 @@
 // Серверная авторизация (уровень 4): scrypt-хеширование паролей, сессии
 // в PostgreSQL, httpOnly-cookie wf_session, проверка прав ДЛЯ КАЖДОЙ
 // защищённой операции. Скрытие кнопок на фронте — только UX; истина здесь.
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
-import { promisify } from 'node:util'
+// Хеширование паролей — в ./password (тестируемо без БД).
 import type { H3Event } from 'h3'
 import type { Role, SessionUser } from '#shared/types'
-
-const scrypt = promisify(scryptCb)
+// Хеширование/проверка паролей — в ./password (тестируемо без БД), здесь не реэкспортируем,
+// чтобы Nitro auto-import не ругался на дублирующиеся утилиты.
 
 export const SESSION_COOKIE = 'wf_session'
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 дней
-
-// ─── Пароли (scrypt + соль, формат "salt:hash" в hex) ───────────────────────
-
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex')
-  const hash = (await scrypt(password, salt, 64)) as Buffer
-  return `${salt}:${hash.toString('hex')}`
-}
-
-export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [salt, hashHex] = stored.split(':')
-  if (!salt || !hashHex) return false
-  const expected = Buffer.from(hashHex, 'hex')
-  const actual = (await scrypt(password, salt, expected.length)) as Buffer
-  return expected.length === actual.length && timingSafeEqual(expected, actual)
-}
 
 // ─── Сессии ─────────────────────────────────────────────────────────────────
 

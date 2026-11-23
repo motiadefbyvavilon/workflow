@@ -5,15 +5,15 @@
 //   Operator/Admin — все
 import type { H3Event } from 'h3'
 import type { PGlite } from '@electric-sql/pglite'
-import type { ApiRequestStatus, SessionUser } from '#shared/types'
+import type { ApiPriority, RequestStatus, SessionUser } from '#shared/types'
 import { requireUser } from './auth'
 
 export interface RequestRow {
   id: string
   subject: string
   body: string
-  status: ApiRequestStatus
-  priority: number
+  status: RequestStatus
+  priority: ApiPriority
   category_id: number
   author_id: number
   customer_id: number | null

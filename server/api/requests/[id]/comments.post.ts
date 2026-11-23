@@ -30,7 +30,17 @@ export default defineEventHandler(async (event) => {
     [id, user.id, parsed.data.text, now],
   )
 
-  const comment: ApiComment = { ...rows[0], author_name: user.name }
+  const row = rows[0]
+  if (!row) {
+    throw createError({ statusCode: 500, statusMessage: 'Не удалось сохранить комментарий' })
+  }
+  const comment: ApiComment = {
+    id: row.id,
+    at: row.at,
+    author_id: row.author_id,
+    text: row.text,
+    author_name: user.name,
+  }
   await db.query('UPDATE requests SET updated_at = $2 WHERE id = $1', [id, now])
   return comment
 })

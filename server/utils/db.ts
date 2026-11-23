@@ -8,23 +8,49 @@
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
-import { hashPassword } from './auth'
+import { hashPassword } from './password'
 
 let db: PGlite | null = null
 let initPromise: Promise<PGlite> | null = null
 
 export async function getDb(): Promise<PGlite> {
   if (db) return db
-  initPromise ??= (async () => {
-    const dataDir = resolve(process.cwd(), '.data/pg')
-    mkdirSync(dataDir, { recursive: true })
-    const instance = new PGlite(dataDir)
-    await migrate(instance)
-    await seed(instance)
-    db = instance
-    return instance
+  // Повторные попытки инициализации (уровень 5): на Windows первый запуск
+  // PGlite на свежем каталоге данных может словить транзиентную ошибку FS
+  // (Emscripten ErrnoError ENOENT — антивирус/синхронизация облака держат
+  // файл). Без повтора отклонённый initPromise кэшировался бы навсегда,
+  // и каждый запрос получал бы 500.
+  initPromise ??= (async (): Promise<PGlite> => {
+    const attempts = 4
+    let lastErr: unknown = null
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        return await initOnce()
+      } catch (err) {
+        lastErr = err
+        if (attempt < attempts) {
+          console.warn(`[db] инициализация PGlite не удалась (попытка ${attempt}/${attempts}):`, err)
+          await new Promise((r) => setTimeout(r, 250 * attempt))
+        }
+      }
+    }
+    throw lastErr
   })()
   return initPromise
+}
+
+async function initOnce(): Promise<PGlite> {
+  // WF_DATA_DIR — переопределение каталога данных (E2E-тесты стартуют
+  // сервер с чистой БД в отдельной папке, уровень 5)
+  const dataDir = process.env.WF_DATA_DIR
+    ? resolve(process.env.WF_DATA_DIR)
+    : resolve(process.cwd(), '.data/pg')
+  mkdirSync(dataDir, { recursive: true })
+  const instance = new PGlite(dataDir)
+  await migrate(instance)
+  await seed(instance)
+  db = instance
+  return instance
 }
 
 async function migrate(db: PGlite): Promise<void> {
@@ -174,8 +200,8 @@ const SEED_REQUESTS: {
 ]
 
 async function seed(db: PGlite): Promise<void> {
-  const { rows } = await db.query('SELECT COUNT(*)::int AS n FROM users')
-  if (rows[0].n > 0) return
+  const { rows } = await db.query<{ n: number }>('SELECT COUNT(*)::int AS n FROM users')
+  if ((rows[0]?.n ?? 0) > 0) return
 
   for (const u of SEED_USERS) {
     const passwordHash = await hashPassword(u.password)
@@ -230,5 +256,5 @@ export async function nextRequestId(db: PGlite): Promise<string> {
   const { rows } = await db.query<{ n: number }>(
     "SELECT COALESCE(MAX(CAST(substring(id FROM 4) AS int)), 100) AS n FROM requests WHERE id LIKE 'WF-%'",
   )
-  return `WF-${rows[0].n + 1}`
+  return `WF-${(rows[0]?.n ?? 100) + 1}`
 }

@@ -27,8 +27,10 @@ export default defineEventHandler(async (event) => {
   const page = Math.max(1, Number(query.page ?? 1) || 1)
   const pageSize = Math.min(50, Math.max(1, Number(query.pageSize ?? 5) || 5))
 
-  const conditions: string[] = [visibilityClause(user)]
-  const params: unknown[] = [user.id]
+  const visibility = visibilityClause(user)
+  // параметр $1 используется только в условиях client/agent — иначе bind-ошибка PGlite
+  const conditions: string[] = [visibility]
+  const params: unknown[] = visibility.includes('$1') ? [user.id] : []
 
   if (search) {
     params.push(`%${search}%`)
@@ -42,9 +44,9 @@ export default defineEventHandler(async (event) => {
     params.push(category)
     conditions.push(`r.category_id = $${params.length}`)
   }
-  const weight = PRIORITY_WEIGHT[priority]
-  if (weight) {
-    params.push(weight)
+  if (priority in PRIORITY_WEIGHT) {
+    // в БД priority — INTEGER-вес (4/3/2/1), API — строка
+    params.push(PRIORITY_WEIGHT[priority])
     conditions.push(`r.priority = $${params.length}`)
   }
 
@@ -71,7 +73,7 @@ export default defineEventHandler(async (event) => {
 
   const response: RequestListResponse = {
     items: rows,
-    total: countRows[0].n,
+    total: countRows[0]?.n ?? 0,
     page,
     pageSize,
   }

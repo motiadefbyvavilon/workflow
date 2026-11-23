@@ -10,11 +10,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Категория не найдена' })
   }
 
-  const { rows: used } = await db.query(
+  const { rows: used } = await db.query<{ n: number }>(
     'SELECT COUNT(*)::int AS n FROM requests WHERE category_id = $1',
     [id],
   )
-  if (used[0].n > 0) {
+  if ((used[0]?.n ?? 0) > 0) {
     throw createError({ statusCode: 409, statusMessage: 'Нельзя удалить категорию, по которой есть заявки' })
   }
 
