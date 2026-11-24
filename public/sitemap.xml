@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Статический sitemap (уровень 6): публичные маршруты + статьи базы знаний.
+     URL статей продублированы из app/content/articles.ts — unit-тест
+     sitemap-sync гарантирует, что списки не разойдутся. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://workflow.example.com/</loc></url>
+  <url><loc>https://workflow.example.com/faq</loc></url>
+  <url><loc>https://workflow.example.com/help</loc></url>
+  <url><loc>https://workflow.example.com/articles</loc></url>
+  <url><loc>https://workflow.example.com/login</loc></url>
+  <url><loc>https://workflow.example.com/articles/kak-sozdat-zayavku</loc></url>
+  <url><loc>https://workflow.example.com/articles/statusy-i-zhiznennyj-cikl</loc></url>
+  <url><loc>https://workflow.example.com/articles/roli-i-prava-dostupa</loc></url>
+  <url><loc>https://workflow.example.com/articles/poisk-filtry-i-sortirovka</loc></url>
+  <url><loc>https://workflow.example.com/articles/optimistic-update-i-otkat</loc></url>
+</urlset>

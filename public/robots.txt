@@ -1,2 +1,7 @@
-User-Agent: *
-Disallow:
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /requests
+Disallow: /profile
+
+Sitemap: https://workflow.example.com/sitemap.xml
