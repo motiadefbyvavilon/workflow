@@ -3,7 +3,19 @@
 // ошибка 401 показывается под формой. Демо-аккаунты — в подсказке ниже.
 definePageMeta({ layout: 'public' })
 
-useHead({ title: 'Вход — WorkFlow' })
+useSeoMeta({
+  title: 'Вход — WorkFlow',
+  description: 'Вход в демо WorkFlow: учебный трекер заявок команды с ролями, статусами и хронологией.',
+  ogTitle: 'Вход — WorkFlow',
+  ogDescription: 'Вход в демо WorkFlow: учебный трекер заявок команды с ролями, статусами и хронологией.',
+  ogType: 'website',
+  ogUrl: absoluteUrl('/login'),
+  ogSiteName: SITE_NAME,
+})
+
+useHead({
+  link: [{ rel: 'canonical', href: absoluteUrl('/login') }],
+})
 
 const router = useRouter()
 const route = useRoute()

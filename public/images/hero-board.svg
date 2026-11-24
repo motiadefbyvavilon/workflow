@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="320" viewBox="0 0 880 320" role="img" aria-label="Доска заявок WorkFlow">
+  <defs>
+    <style>
+      .bg { fill: #f7f8fa; }
+      .col { fill: #ffffff; stroke: #e2e4ea; }
+      .head { font: 700 13px 'Segoe UI', system-ui, sans-serif; fill: #52596b; }
+      .chip-new { fill: #e8edfd; }
+      .chip-prog { fill: #efeafd; }
+      .chip-done { fill: #e6f5ec; }
+      .card1 { fill: #ffffff; stroke: #d8dbe4; }
+      .t { font: 600 11px 'Segoe UI', system-ui, sans-serif; fill: #2b2f3a; }
+      .tag { font: 700 9px 'Segoe UI', system-ui, sans-serif; }
+      .tag-new { fill: #3b5bdb; }
+      .tag-prog { fill: #7048e8; }
+      .tag-done { fill: #2f9e44; }
+      .line { stroke: #eef0f4; stroke-width: 1; }
+    </style>
+  </defs>
+  <rect class="bg" width="880" height="320" rx="12"/>
+  <!-- три колонки статусов -->
+  <rect class="col" x="24"  y="24" width="264" height="272" rx="10"/>
+  <rect class="col" x="308" y="24" width="264" height="272" rx="10"/>
+  <rect class="col" x="592" y="24" width="264" height="272" rx="10"/>
+  <text class="head" x="44" y="52">Новые</text>
+  <text class="head" x="328" y="52">В работе</text>
+  <text class="head" x="612" y="52">Выполнены</text>
+  <!-- карточки: Новые -->
+  <rect class="card1" x="40" y="68" width="232" height="56" rx="8"/>
+  <text class="t" x="52" y="90">Не открывается раздел отчётов</text>
+  <rect class="chip-new" x="52" y="100" width="48" height="14" rx="7"/>
+  <text class="tag tag-new" x="60" y="110">WF-102</text>
+  <rect class="card1" x="40" y="136" width="232" height="56" rx="8"/>
+  <text class="t" x="52" y="158">Права доступа: роль наблюдателя</text>
+  <rect class="chip-new" x="52" y="168" width="48" height="14" rx="7"/>
+  <text class="tag tag-new" x="60" y="178">WF-108</text>
+  <!-- карточки: В работе -->
+  <rect class="card1" x="324" y="68" width="232" height="56" rx="8"/>
+  <text class="t" x="336" y="90">Ошибка часового пояса в timeline</text>
+  <rect class="chip-prog" x="336" y="100" width="52" height="14" rx="7"/>
+  <text class="tag tag-prog" x="344" y="110">WF-110</text>
+  <rect class="card1" x="324" y="136" width="232" height="56" rx="8"/>
+  <text class="t" x="336" y="158">Улучшить пустые состояния</text>
+  <rect class="chip-prog" x="336" y="168" width="52" height="14" rx="7"/>
+  <text class="tag tag-prog" x="344" y="178">WF-112</text>
+  <rect class="card1" x="324" y="204" width="232" height="56" rx="8"/>
+  <text class="t" x="336" y="226">Оптимизация загрузки списка</text>
+  <rect class="chip-prog" x="336" y="236" width="52" height="14" rx="7"/>
+  <text class="tag tag-prog" x="344" y="246">WF-107</text>
+  <!-- карточки: Выполнены -->
+  <rect class="card1" x="608" y="68" width="232" height="56" rx="8"/>
+  <text class="t" x="620" y="90">Поиск по номеру заявки</text>
+  <rect class="chip-done" x="620" y="100" width="52" height="14" rx="7"/>
+  <text class="tag tag-done" x="628" y="110">WF-109</text>
+  <rect class="card1" x="608" y="136" width="232" height="56" rx="8"/>
+  <text class="t" x="620" y="158">Двухфакторная авторизация</text>
+  <rect class="chip-done" x="620" y="168" width="52" height="14" rx="7"/>
+  <text class="tag tag-done" x="628" y="178">WF-113</text>
+</svg>

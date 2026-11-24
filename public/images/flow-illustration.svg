@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200" role="img" aria-label="Схема потока заявки: создание, назначение, выполнение">
+  <defs>
+    <style>
+      .box { fill: #ffffff; stroke: #d8dbe4; }
+      .arr { stroke: #6c7bd4; stroke-width: 2; fill: none; }
+      .lbl { font: 600 10px 'Segoe UI', system-ui, sans-serif; fill: #52596b; }
+      .cap { font: 600 11px 'Segoe UI', system-ui, sans-serif; fill: #2b2f3a; }
+    </style>
+    <marker id="dot" markerWidth="6" markerHeight="6" refX="3" refY="3">
+      <circle cx="3" cy="3" r="2.5" fill="#4853c7"/>
+    </marker>
+  </defs>
+  <rect width="320" height="200" rx="10" fill="#f7f8fa"/>
+  <rect class="box" x="20" y="70" width="80" height="56" rx="8"/>
+  <text class="cap" x="38" y="95">Заявка</text>
+  <text class="lbl" x="34" y="110">WF-117 создана</text>
+  <rect class="box" x="120" y="70" width="80" height="56" rx="8"/>
+  <text class="cap" x="132" y="95">Исполнитель</text>
+  <text class="lbl" x="130" y="110">назначен оператором</text>
+  <rect class="box" x="220" y="70" width="80" height="56" rx="8"/>
+  <text class="cap" x="238" y="95">Статус</text>
+  <text class="lbl" x="234" y="110">выполнена</text>
+  <path class="arr" d="M100 98 H118" marker-end="url(#dot)"/>
+  <path class="arr" d="M200 98 H218" marker-end="url(#dot)"/>
+</svg>
